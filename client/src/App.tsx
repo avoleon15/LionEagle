@@ -1,0 +1,127 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { CODE_LENGTH, type Ack, type JoinResult, type RoomState } from '../../shared/protocol'
+import { Game } from './Game'
+import { Home } from './Home'
+import { Lobby } from './Lobby'
+import { clearSession, loadProfile, loadSession, saveProfile, saveSession, type Profile } from './session'
+import { socket } from './socket'
+
+const codeFromUrl = () => {
+  const c = window.location.pathname.replace(/\//g, '').toUpperCase()
+  return c.length === CODE_LENGTH ? c : ''
+}
+
+export function App() {
+  const [profile, setProfile] = useState<Profile>(loadProfile)
+  const [room, setRoom] = useState<RoomState | null>(null)
+  const [playerId, setPlayerId] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [connected, setConnected] = useState(socket.connected)
+  // True while we try to get back into the room we were in, so a reload doesn't flash the home screen.
+  const [restoring, setRestoring] = useState(() => loadSession() !== null)
+  const profileRef = useRef(profile)
+  profileRef.current = profile
+
+  const enter = useCallback((res: Ack<JoinResult>) => {
+    setBusy(false)
+    if (!res.ok) {
+      setError(res.error)
+      clearSession()
+      return false
+    }
+    setError('')
+    setRoom(res.data.room)
+    setPlayerId(res.data.playerId)
+    saveSession({ code: res.data.room.code, playerId: res.data.playerId })
+    window.history.replaceState(null, '', `/${res.data.room.code}`)
+    return true
+  }, [])
+
+  const join = useCallback(
+    (code?: string) => {
+      const p = profileRef.current
+      saveProfile(p)
+      setBusy(true)
+      setError('')
+      const prev = loadSession()
+      const playerId = prev && code && prev.code === code.toUpperCase() ? prev.playerId : undefined
+      socket.emit('room:join', { code, nick: p.nick, avatar: p.avatar, playerId }, enter)
+    },
+    [enter],
+  )
+
+  useEffect(() => {
+    const onState = (r: RoomState) => setRoom(r)
+    const onConnect = () => {
+      setConnected(true)
+      // Come back to the room we were in (page reload or dropped connection).
+      const s = loadSession()
+      const p = profileRef.current
+      if (s && p.nick) {
+        socket.emit('room:join', { code: s.code, nick: p.nick, avatar: p.avatar, playerId: s.playerId }, (res) => {
+          if (res.ok) {
+            enter(res)
+          } else {
+            // The room is gone (the server restarted, or our seat expired while we were offline):
+            // drop whatever we were showing instead of staying stuck on a dead game screen.
+            clearSession()
+            setRoom(null)
+            setPlayerId(null)
+            setError('Esa sala ya no existe. Crea una nueva o únete con otro código.')
+            window.history.replaceState(null, '', '/')
+          }
+          setRestoring(false)
+        })
+      } else {
+        setRestoring(false)
+      }
+    }
+    const onDisconnect = () => setConnected(false)
+    socket.on('room:state', onState)
+    socket.on('connect', onConnect)
+    socket.on('disconnect', onDisconnect)
+    if (socket.connected) onConnect()
+    return () => {
+      socket.off('room:state', onState)
+      socket.off('connect', onConnect)
+      socket.off('disconnect', onDisconnect)
+    }
+  }, [enter])
+
+  const leave = () => {
+    socket.emit('room:leave')
+    clearSession()
+    setRoom(null)
+    setPlayerId(null)
+    window.history.replaceState(null, '', '/')
+  }
+
+  return (
+    <div className="app">
+      {!connected && <div className="banner">Reconectando…</div>}
+      {restoring && !room ? (
+        <main className="home">
+          <p className="tagline">Volviendo a tu sala…</p>
+        </main>
+      ) : null}
+      {restoring && !room ? null : room && playerId ? (
+        room.phase === 'playing' && room.game ? (
+          <Game room={room} game={room.game} me={playerId} onLeave={leave} />
+        ) : (
+          <Lobby room={room} me={playerId} nick={profile.nick} onLeave={leave} />
+        )
+      ) : (
+        <Home
+          profile={profile}
+          onProfile={setProfile}
+          initialCode={codeFromUrl()}
+          error={error}
+          busy={busy || !connected}
+          onCreate={() => join()}
+          onJoin={(code) => join(code)}
+        />
+      )}
+    </div>
+  )
+}
