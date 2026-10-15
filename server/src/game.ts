@@ -48,7 +48,23 @@ export class Game {
     if (this.timer) clearTimeout(this.timer)
     this.endsAt = Date.now() + ms
     this.durationMs = ms
-    this.timer = setTimeout(fn, ms)
+    // A timer callback that throws would be an uncaught exception and take the whole server (every room) down.
+    this.timer = setTimeout(() => {
+      try {
+        fn()
+      } catch (e) {
+        console.error('game timer:', e)
+      }
+    }, ms)
+  }
+
+  /** Telling the clients must never break the game logic, whatever the transport does. */
+  private changed() {
+    try {
+      this.hooks.changed()
+    } catch (e) {
+      console.error('game changed:', e)
+    }
   }
 
   private startRound() {
@@ -58,7 +74,7 @@ export class Game {
     this.reveal = null
     this.index = buildIndex(this.question)
     this.schedule(ROUND_MS, () => this.finishRound())
-    this.hooks.changed()
+    this.changed()
   }
 
   private finishRound() {
@@ -73,11 +89,13 @@ export class Game {
       .sort((a, b) => b.points - a.points)
       .slice(0, 6)
       .map((a) => ({ text: a.label, points: a.points }))
-    recordRound(this.question.id, results.length, results.filter((r) => r.answer !== null).length)
+    // Somebody who dropped out before answering never really saw the question: do not count them as asked.
+    const present = new Set(this.hooks.active())
+    recordRound(this.question.id, results.filter((r) => r.answer !== null || present.has(r.playerId)).length, results.filter((r) => r.answer !== null).length)
     this.reveal = { results, top }
     this.stage = 'reveal'
     this.schedule(REVEAL_MS, () => this.next())
-    this.hooks.changed()
+    this.changed()
   }
 
   private next() {
@@ -87,7 +105,7 @@ export class Game {
       this.endsAt = 0
       if (this.timer) clearTimeout(this.timer)
       this.timer = null
-      this.hooks.changed()
+      this.changed()
     } else {
       this.round++
       this.startRound()
@@ -112,13 +130,13 @@ export class Game {
       const used = (this.wrong.get(playerId) ?? 0) + 1
       this.wrong.set(playerId, used)
       if (used >= MAX_ATTEMPTS) {
-        this.hooks.changed() // others see that this player is out of tries
+        this.changed() // others see that this player is out of tries
         this.checkEarlyEnd()
       }
       return { valid: false, attemptsLeft: MAX_ATTEMPTS - used }
     }
     this.locks.set(playerId, hit)
-    this.hooks.changed()
+    this.changed()
     this.checkEarlyEnd()
     return { valid: true, label: hit.label, points: hit.points }
   }

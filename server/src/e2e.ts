@@ -34,7 +34,7 @@ const base = `http://localhost:${port}`
 
 let child: ChildProcess | null = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
   cwd: serverDir,
-  env: { ...process.env, PORT: String(port), DB_PATH: join(dir, 'e2e.db'), ADMIN_TOKEN: 'e2e', LE_ROUND_MS: '3000', LE_REVEAL_MS: '400', NODE_NO_WARNINGS: '1' },
+  env: { ...process.env, PORT: String(port), DB_PATH: join(dir, 'e2e.db'), ADMIN_TOKEN: 'e2e', LE_ROUND_MS: '3000', LE_REVEAL_MS: '400', LE_HOST_HANDOVER_MS: '500', NODE_NO_WARNINGS: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 let log = ''
@@ -164,6 +164,64 @@ const av = { color: 1, face: 2, hair: 3, hat: 4, pants: 5 }
   await emit(B, 'game:answer', q.answers[0].label)
   await sleep(300)
   check(st.game.stage === 'reveal', 'the round ends early once the other player answers')
+  A.close()
+  B.close()
+}
+
+// ---- 4b. host who disconnects, nick on rejoin ----
+{
+  const A = await connect()
+  const B = await connect()
+  let st: any
+  B.on('room:state', (r: any) => (st = r))
+  const ra = await emit(A, 'room:join', { nick: 'Ana', avatar: av })
+  const rb = await emit(B, 'room:join', { code: ra.data.room.code, nick: 'Beto', avatar: av })
+  A.close()
+  await sleep(150)
+  check(st.hostId === ra.data.playerId, 'host: a short drop does not hand the room over yet')
+  await sleep(900)
+  check(st.hostId === rb.data.playerId, 'host: after a few seconds away the room goes to a connected player')
+
+  // The first host comes back later with a nickname somebody else has taken meanwhile.
+  const A2 = await connect()
+  const back = await emit(A2, 'room:join', { code: ra.data.room.code, nick: 'beto', avatar: av, playerId: ra.data.playerId })
+  const nicks = back.data.room.players.map((p: any) => p.nick.toLowerCase())
+  check(back.ok && new Set(nicks).size === nicks.length, `nick: a rejoin cannot create a duplicate nickname (${nicks.join(', ')})`)
+  check(back.data.room.hostId === rb.data.playerId, 'host: the player who came back is not the host again')
+
+  // A host who comes back in time keeps the room.
+  const C = await connect()
+  const D = await connect()
+  let st2: any
+  D.on('room:state', (r: any) => (st2 = r))
+  const rc = await emit(C, 'room:join', { nick: 'Cata', avatar: av })
+  await emit(D, 'room:join', { code: rc.data.room.code, nick: 'Dani', avatar: av })
+  C.close()
+  await sleep(150)
+  const C2 = await connect()
+  await emit(C2, 'room:join', { code: rc.data.room.code, nick: 'Cata', avatar: av, playerId: rc.data.playerId })
+  await sleep(900)
+  check(st2.hostId === rc.data.playerId, 'host: a host who reconnects in time stays the host')
+  for (const s of [A2, B, C2, D]) s.close()
+}
+
+// ---- 4c. a category the host picked disappears before the game starts ----
+{
+  const adminApi = (path: string, init: RequestInit = {}) => fetch(base + path, { ...init, headers: { 'x-admin-token': 'e2e', 'Content-Type': 'application/json' } })
+  const A = await connect()
+  const B = await connect()
+  let st: any
+  A.on('room:state', (r: any) => (st = r))
+  const ra = await emit(A, 'room:join', { nick: 'Ana', avatar: av })
+  await emit(B, 'room:join', { code: ra.data.room.code, nick: 'Beto', avatar: av })
+  check((await emit(A, 'room:categories', ['Ciencia', 'Música'])).ok === true, 'categories: the host can pick two categories')
+  const all = (await (await adminApi('/api/admin/questions')).json()).questions as { id: string; category: string }[]
+  for (const x of all.filter((x) => ['Ciencia', 'Música'].includes(x.category))) await adminApi(`/api/admin/questions/${x.id}/status`, { method: 'POST', body: JSON.stringify({ status: 'archived' }) })
+  await emit(A, 'room:join', { code: ra.data.room.code, nick: 'Ana', avatar: av, playerId: ra.data.playerId }) // asks the server for fresh state
+  await sleep(150)
+  check(st.selected.length > 0 && !st.selected.includes('Ciencia') && !st.selected.includes('Música'), `categories: when every picked category is gone the selection falls back to the rest (${st.selected.join(', ')})`)
+  const started = await emit(A, 'game:start')
+  check(started.ok === true, `categories: the game still starts (${started.error ?? 'ok'})`)
   A.close()
   B.close()
 }

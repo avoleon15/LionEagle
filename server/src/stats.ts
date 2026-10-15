@@ -1,5 +1,5 @@
 import { handle, getQuestion, listQuestions, saveQuestion, InputError, type SaveResult } from './db'
-import { buildIndex, keys, match, type Index } from './matching'
+import { buildIndex, keys, match, validateQuestion, type Index } from './matching'
 
 // What players type is logged per question (never who typed it). Answers that are not on the list are the
 // useful part: the ones that many people try are probably valid answers we forgot. Whether a logged answer
@@ -195,6 +195,12 @@ export function addFromLog(id: string, text: string, opts: { points?: number; la
     target.aliases.push(clean)
   } else {
     answers.push({ label: String(opts.label ?? clean).trim() || clean, aliases: opts.label && opts.label !== clean ? [clean] : [], points: Number(opts.points) })
+  }
+  // saveQuestion quietly turns a question that no longer passes the checks into a draft. For a question that is
+  // live that would pull it out of the games without anyone noticing, so refuse the change instead.
+  if (q.status === 'published') {
+    const problems = validateQuestion({ id: q.id, category: q.category, prompt: q.prompt, answers })
+    if (problems.length > 0) throw new InputError(`No se agregó, porque la pregunta dejaría de poder jugarse: ${problems.join(' ')}`)
   }
   return saveQuestion({ ...q, answers })
 }

@@ -17,7 +17,7 @@ const G: Record<string, string> = {
 const clean = (s: string) =>
   s
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
 
 export const textWidth = (s: string) => Math.max(0, clean(s).length * 4 - 1)

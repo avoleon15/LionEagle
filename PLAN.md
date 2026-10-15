@@ -72,4 +72,13 @@ Medium findings 4-8 fixed the same day:
 - **Security:** the admin checks the token before reading the body, locks an address out for 15 minutes after 10 failed attempts, and the token is only printed to a terminal (never to hosting logs). `X-Forwarded-For` is ignored unless `TRUST_PROXY` is set (set `TRUST_PROXY=1` behind a proxy). `/api/*` misses answer JSON 404. Rate limits live in `server/src/ratelimit.ts` and sweep expired entries.
 - **Ready to publish:** `tsx` is a real dependency and `engines.node` is `>=22.13` (SQLite is built in); SQLite runs in WAL mode with a busy timeout so `npm run import` can run while the server is up; the project is under git. To run it: `npm ci --omit=dev && npm run build && ADMIN_TOKEN=... TRUST_PROXY=1 PORT=... npm start` (use HTTPS in front of it, because the admin token travels in a header).
 - **Admin list:** it carries summaries (24 KB for 123 questions instead of 430 KB), quality checks are cached per question, categories have their own endpoint and typing in the search box waits 300 ms.
-Still open (low): timers in `game.ts` have no try/catch, adding an alias from the answer log can unpublish a live question, the host stays "absent" for 60 s after a disconnect, stale category selection after archiving, nick uniqueness on rejoin, `recordRound` counts disconnected players as asked, regexes with literal combining characters.
+Low findings fixed afterwards (2026-10-15):
+- **Timers:** `Game` wraps every timer callback and every "state changed" notification in try/catch, so a failing socket or a bug in one round cannot become an uncaught exception that kills every room.
+- **Host:** a host who stays disconnected for `HOST_HANDOVER_MS` (10 s, env `LE_HOST_HANDOVER_MS`) hands the room to a connected player; a host who comes back in time keeps it. A player who returns after losing the host is a normal player.
+- **Nicknames:** a rejoin keeps the current nickname if somebody else has taken the saved one.
+- **Categories:** categories the host picked that no longer have published questions are dropped; if none are left the selection falls back to all of them (the start check uses the same rule).
+- **Answer log:** adding an alias or answer from the log to a *published* question is refused with the reason when it would make the question invalid, instead of silently turning it into a draft.
+- **Stats:** `recordRound` only counts as "asked" the players who were connected at the end of the round or had answered.
+- **Regexes:** the accent-stripping ranges use `\u0300-\u036f` escapes instead of invisible literal characters.
+- **Dependencies:** vite 5 -> 7 (client); `npm audit` reports 0 vulnerabilities.
+Nothing known is left open from the review.

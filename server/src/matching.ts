@@ -24,7 +24,7 @@ function words(raw: string): string[] {
   const w = raw
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // accents (and ñ -> n)
+    .replace(/[\u0300-\u036f]/g, '') // accents (and ñ -> n)
     .replace(/\+/g, ' plus ') // "C++" is not "C"
     .replace(/#/g, ' sharp ') // "C#" is not "C"
     .replace(/[^a-z0-9\s]/g, ' ')

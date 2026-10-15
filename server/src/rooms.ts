@@ -10,6 +10,7 @@ import {
   type Phase,
   type RoomState,
 } from '../../shared/protocol'
+import { HOST_HANDOVER_MS } from './config'
 import * as db from './db'
 import { Game } from './game'
 import { selectQuestions } from './selection'
@@ -34,6 +35,7 @@ interface Room {
   game: Game | null
   selected: string[] | null // categories for the next game; null = all of them
   played: Set<string> // question ids this room has already seen
+  handoverTimer: NodeJS.Timeout | null // set while the host is disconnected
 }
 
 const rooms = new Map<string, Room>()
@@ -87,11 +89,20 @@ function newCode(): string {
   }
 }
 
+/**
+ * The categories the next game would draw from. A category can disappear after the host picked it (the owner
+ * archived its last question): drop those, and if nothing is left fall back to everything, never to "nothing".
+ */
+function selection(room: Room, names: string[]): string[] {
+  const chosen = room.selected?.filter((n) => names.includes(n)) ?? []
+  return chosen.length > 0 ? chosen : names
+}
+
 export function view(room: Room): RoomState {
   const lobby = room.phase === 'lobby'
   const categories = lobby ? db.categories() : []
   const names = categories.map((c) => c.name)
-  const selected = lobby ? (room.selected ?? names).filter((n) => names.includes(n)) : []
+  const selected = lobby ? selection(room, names) : []
   return {
     categories,
     selected,
@@ -122,7 +133,7 @@ export function join(
   const avatar = clampAvatar(p.avatar)
 
   if (!p.code) {
-    const room: Room = { code: newCode(), hostId: '', phase: 'lobby', players: new Map(), game: null, selected: null, played: new Set() }
+    const room: Room = { code: newCode(), hostId: '', phase: 'lobby', players: new Map(), game: null, selected: null, played: new Set(), handoverTimer: null }
     const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null }
     room.hostId = player.id
     room.players.set(player.id, player)
@@ -138,8 +149,14 @@ export function join(
     if (existing.dropTimer) clearTimeout(existing.dropTimer)
     existing.dropTimer = null
     existing.socketId = socketId
-    existing.nick = nick
+    // The saved nick may have been taken by somebody else in the meantime: keep the current one then.
+    const clash = [...room.players.values()].some((q) => q.id !== existing.id && q.nick.toLowerCase() === nick.toLowerCase())
+    if (!clash) existing.nick = nick
     existing.avatar = avatar
+    if (room.hostId === existing.id && room.handoverTimer) {
+      clearTimeout(room.handoverTimer)
+      room.handoverTimer = null
+    }
     return { room, player: existing }
   }
 
@@ -158,6 +175,7 @@ function removePlayer(room: Room, playerId: string): void {
   if (p?.dropTimer) clearTimeout(p.dropTimer)
   room.players.delete(playerId)
   if (room.players.size === 0) {
+    if (room.handoverTimer) clearTimeout(room.handoverTimer)
     room.game?.dispose()
     rooms.delete(room.code)
     return
@@ -166,7 +184,27 @@ function removePlayer(room: Room, playerId: string): void {
   if (room.hostId === playerId) {
     const next = [...room.players.values()].find((q) => q.socketId !== null) ?? [...room.players.values()][0]
     room.hostId = next.id
+    if (room.handoverTimer) clearTimeout(room.handoverTimer)
+    room.handoverTimer = null
   }
+}
+
+/** A host who stays away for a few seconds loses the room to a connected player, so the game is never stuck waiting for them. */
+function scheduleHandover(room: Room) {
+  if (room.handoverTimer) clearTimeout(room.handoverTimer)
+  room.handoverTimer = setTimeout(() => {
+    room.handoverTimer = null
+    try {
+      const host = room.players.get(room.hostId)
+      if (!host || host.socketId !== null) return
+      const next = [...room.players.values()].find((q) => q.socketId !== null)
+      if (!next) return // everybody is gone: the grace timers will clean up
+      room.hostId = next.id
+      notify(room)
+    } catch (e) {
+      console.error('host handover:', e)
+    }
+  }, HOST_HANDOVER_MS)
 }
 
 /** Voluntary leave: remove immediately. Returns the room if it still exists. */
@@ -184,6 +222,7 @@ export function disconnect(socketId: string, onExpire: (room: Room) => void): Ro
   const { room, player } = found
   player.socketId = null
   room.game?.checkEarlyEnd()
+  if (room.hostId === player.id) scheduleHandover(room)
   player.dropTimer = setTimeout(() => {
     removePlayer(room, player.id)
     if (rooms.has(room.code)) onExpire(room)
@@ -207,7 +246,7 @@ export function start(socketId: string): Room {
   if (room.hostId !== player.id) throw new RoomError('Solo el anfitrión puede empezar.')
   if (room.phase !== 'lobby') throw new RoomError('La partida ya empezó.')
   if (room.players.size < 2) throw new RoomError('Se necesitan al menos 2 jugadores.')
-  const pool = db.playable(room.selected)
+  const pool = db.playable(selection(room, db.categories().map((c) => c.name)))
   if (pool.length < QUESTIONS_PER_GAME) {
     throw new RoomError(`Con esas categorías solo hay ${pool.length} preguntas y se necesitan ${QUESTIONS_PER_GAME}. Elige más categorías.`)
   }

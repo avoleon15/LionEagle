@@ -150,6 +150,18 @@ stats.logAnswer(sq.id, 'rojito')
 const al = stats.addFromLog(sq.id, 'rojito', { alias: true, label: 'Rojo' })
 check(!al.demoted && stats.detail(sq.id)!.unknown.length === 0, 'adding an alias to an existing answer')
 check(thrown(() => stats.addFromLog(sq.id, 'x', { alias: true, label: 'No existe' })), 'alias for an unknown answer is rejected')
+{
+  // An alias that clashes with another answer would make the question invalid; saving it would silently unpublish a live question.
+  stats.logAnswer(sq.id, 'azulado')
+  const before = db.getQuestion(sq.id)!
+  check(before.status === 'published', 'alias guard: the question is live before the attempt')
+  check(thrown(() => stats.addFromLog(sq.id, 'azul', { alias: true, label: 'Rojo' })), 'alias guard: an alias that clashes with another answer is refused')
+  const after = db.getQuestion(sq.id)!
+  check(after.status === 'published' && JSON.stringify(after.answers) === JSON.stringify(before.answers), 'alias guard: the live question stays published and unchanged')
+  db.setStatus(sq.id, 'draft')
+  check(!stats.addFromLog(sq.id, 'azulado', { alias: true, label: 'Rojo' }).demoted && db.getQuestion(sq.id)!.status === 'draft', 'alias guard: a draft is edited normally')
+  db.setStatus(sq.id, 'published')
+}
 stats.logAnswer(sq.id, 'brillante')
 stats.setIgnored(sq.id, 'brillante', true)
 check(stats.detail(sq.id)!.unknownTotal === 0 && stats.detail(sq.id)!.unknown[0].ignored, 'ignored answers stop counting as missing')
@@ -186,6 +198,34 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   for (let i = 0; i < 1500; i++) sweep.record('ip-' + i, 0)
   sweep.record('late', 5000)
   check(sweep.size < 10, 'rate limit: expired keys are swept, so the map cannot grow forever')
+}
+
+// ---- a broken client hook or timer callback must not break the game ----
+{
+  const members = ['a', 'b']
+  let calls = 0
+  const game = new Game({ members: () => members, active: () => members, changed: () => { calls++; throw new Error('socket exploded') } }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })))
+  const q1 = QUESTIONS.find((x) => x.prompt === game.view().prompt)!
+  let threw = false
+  const quiet = console.error
+  console.error = () => {} // the failures are expected here
+  try { game.submit('a', q1.answers[0].label); game.submit('b', q1.answers[1].label) } catch { threw = true }
+  console.error = quiet
+  check(!threw && calls > 0 && game.view().stage === 'reveal', 'robustness: a failing change notification does not break answering or ending the round')
+  game.dispose()
+}
+{
+  // a player who dropped before answering was never really asked
+  const members = ['a', 'b', 'c']
+  let active = ['a', 'b']
+  const game = new Game({ members: () => members, active: () => active, changed: () => {} }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })))
+  const q1 = QUESTIONS.find((x) => x.prompt === game.view().prompt)!
+  const before = stats.detail(q1.id)?.asked ?? 0
+  game.submit('a', q1.answers[0].label)
+  game.submit('b', q1.answers[1].label)
+  check(game.view().stage === 'reveal', 'stats: the round ends with the connected players done')
+  check((stats.detail(q1.id)?.asked ?? 0) - before === 2, 'stats: a disconnected player who never answered is not counted as asked')
+  game.dispose()
 }
 
 // ---- attempts per question ----
