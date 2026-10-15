@@ -67,7 +67,6 @@ function clampAvatar(a: Avatar): Avatar {
   return {
     color: c(a?.color, AVATAR_OPTIONS.color),
     face: c(a?.face, AVATAR_OPTIONS.face),
-    hair: c(a?.hair, AVATAR_OPTIONS.hair),
     hat: c(a?.hat, AVATAR_OPTIONS.hat),
     pants: c(a?.pants, AVATAR_OPTIONS.pants),
   }

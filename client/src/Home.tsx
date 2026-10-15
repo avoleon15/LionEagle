@@ -17,7 +17,6 @@ interface Props {
 
 const PARTS: { key: keyof AvatarData; label: string }[] = [
   { key: 'face', label: 'Cara' },
-  { key: 'hair', label: 'Pelo' },
   { key: 'hat', label: 'Gorro' },
   { key: 'pants', label: 'Pantalón' },
 ]

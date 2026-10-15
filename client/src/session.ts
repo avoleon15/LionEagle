@@ -31,12 +31,18 @@ const write = (key: string, value: unknown) => {
 export const randomAvatar = (): Avatar => ({
   color: Math.floor(Math.random() * AVATAR_OPTIONS.color),
   face: 0,
-  hair: 0,
   hat: 0,
   pants: 0,
 })
 
-export const loadProfile = (): Profile => read<Profile>(KEY) ?? { nick: '', avatar: randomAvatar() }
+/** Profiles saved before the haircut option was removed still carry a `hair` field: keep only what exists now. */
+export const loadProfile = (): Profile => {
+  const saved = read<Profile>(KEY)
+  if (!saved) return { nick: '', avatar: randomAvatar() }
+  const fresh = randomAvatar()
+  const pick = (key: keyof Avatar) => (Number.isFinite(saved.avatar?.[key]) ? saved.avatar[key] : fresh[key])
+  return { nick: String(saved.nick ?? ''), avatar: { color: pick('color'), face: pick('face'), hat: pick('hat') % AVATAR_OPTIONS.hat, pants: pick('pants') } }
+}
 export const saveProfile = (p: Profile) => write(KEY, p)
 export const loadSession = () => read<Session>(SESSION_KEY)
 export const saveSession = (s: Session) => write(SESSION_KEY, s)

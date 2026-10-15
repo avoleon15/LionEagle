@@ -15,7 +15,7 @@ function Sprite({ src, scale }: { src: HTMLCanvasElement; scale: number }) {
   return <canvas ref={ref} style={{ width: src.width * scale, height: src.height * scale, imageRendering: 'pixelated' }} />
 }
 
-const base: Avatar = { color: 5, face: 0, hair: 0, hat: 0, pants: 0 }
+const base: Avatar = { color: 5, face: 0, hat: 0, pants: 0 }
 const range = (n: number) => Array.from({ length: n }, (_, i) => i)
 
 export function Sprites() {
@@ -36,8 +36,7 @@ export function Sprites() {
       </div>
       {row('Colores', range(AVATAR_OPTIONS.color).map((color) => ({ ...base, color })))}
       {row('Caras', range(AVATAR_OPTIONS.face).map((face) => ({ ...base, face })))}
-      {row('Pelo', range(AVATAR_OPTIONS.hair).map((hair) => ({ ...base, hair })))}
-      {row('Gorros', range(AVATAR_OPTIONS.hat).map((hat) => ({ ...base, hat })))}
+      {row('Gorros y pelo', range(AVATAR_OPTIONS.hat).map((hat) => ({ ...base, hat })))}
       {row('Pantalones', range(AVATAR_OPTIONS.pants).map((pants) => ({ ...base, pants })))}
     </div>
   )

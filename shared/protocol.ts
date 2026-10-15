@@ -4,12 +4,11 @@ export const MAX_PLAYERS = 12
 export const MAX_NICK = 16
 export const CODE_LENGTH = 4
 
-export const AVATAR_OPTIONS = { color: 12, face: 6, hair: 8, hat: 8, pants: 8 } as const
+export const AVATAR_OPTIONS = { color: 12, face: 6, hat: 18, pants: 8 } as const
 
 export interface Avatar {
   color: number
   face: number
-  hair: number
   hat: number
   pants: number
 }
