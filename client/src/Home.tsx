@@ -18,7 +18,6 @@ interface Props {
 const PARTS: { key: keyof AvatarData; label: string }[] = [
   { key: 'face', label: 'Cara' },
   { key: 'hat', label: 'Gorro' },
-  { key: 'pants', label: 'Pantalón' },
 ]
 
 export function Home({ profile, onProfile, initialCode, error, busy, onCreate, onJoin }: Props) {

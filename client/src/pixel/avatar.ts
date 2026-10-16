@@ -1,14 +1,14 @@
 import type { Avatar } from '../../../shared/protocol'
 import { Painter, shade } from './paint'
 
-export const AVATAR_W = 20
-export const AVATAR_H = 24
+// A thin "pill" character: one rounded body, a face, and a hat. No legs, no arms, no pants.
+export const AVATAR_W = 24
+export const AVATAR_H = 32
 
 export const COLORS = [
   '#e63946', '#f4a261', '#f2c14e', '#6bbf59', '#2a9d8f', '#4cc9f0',
   '#4361ee', '#7b2cbf', '#f15bb5', '#8d5a3b', '#adb5bd', '#f8f9fa',
 ]
-const PANTS = [null, '#264653', '#1d3557', '#6d597a', '#5f0f40', '#386641', '#9c6644', '#3a3f47']
 // Hair is part of the hat: a few of these are only hair, others are a hat with hair coming out of it.
 export const HAT_NAMES = [
   'Sin gorro', 'Gorra', 'Copa', 'Corona', 'Boina', 'Vikingo', 'Cinta', 'Sombrero',
@@ -18,38 +18,61 @@ export const hatName = (i: number) => HAT_NAMES[i] ?? ''
 
 const INK = '#1b1426'
 
-function drawEyes(p: Painter, kind: number) {
-  switch (kind) {
-    case 0:
-      p.rect(6, 9, 2, 3, '#fff'); p.rect(12, 9, 2, 3, '#fff')
-      p.rect(7, 10, 1, 2, INK); p.rect(13, 10, 1, 2, INK)
-      break
-    case 1: // visor
-      p.rect(5, 8, 10, 4, '#223a52'); p.rect(6, 9, 3, 1, '#bfe9ff'); p.px(6, 10, '#7fc4ee')
-      break
-    case 2: // happy arcs
-      for (const x of [6, 12]) { p.px(x, 11, INK); p.px(x + 1, 10, INK); p.px(x + 2, 11, INK) }
-      break
-    case 3: // one big, one small
-      p.rect(5, 8, 3, 4, '#fff'); p.rect(6, 9, 2, 3, INK); p.px(6, 9, '#fff')
-      p.rect(12, 10, 2, 2, '#fff'); p.rect(13, 10, 1, 2, INK)
-      break
-    case 4: // x eyes
-      for (const x of [6, 12]) { p.px(x, 9, INK); p.px(x + 2, 9, INK); p.px(x + 1, 10, INK); p.px(x, 11, INK); p.px(x + 2, 11, INK) }
-      break
-    default: // sleepy
-      p.rect(6, 10, 3, 1, INK); p.rect(11, 10, 3, 1, INK); p.rect(6, 9, 3, 1, '#0003'); p.rect(11, 9, 3, 1, '#0003')
+// The pill is drawn row by row: these are the widths of the rounded top (and, mirrored, bottom) rows, so the
+// curve is placed by hand instead of coming out of a formula (a formula gives straight diagonal "corners").
+const TOP_ROWS = [8, 12, 14]
+const BODY_W = 14
+const BODY_TOP = 6
+const BODY_BOTTOM = 29
+const CX = 12
+
+function drawBody(p: Painter, body: string) {
+  const dark = shade(body, -0.26)
+  const light = shade(body, 0.38)
+  const rows: [number, number][] = []
+  for (let y = BODY_TOP; y <= BODY_BOTTOM; y++) {
+    let w = BODY_W
+    const fromTop = y - BODY_TOP
+    const fromBottom = BODY_BOTTOM - y
+    if (fromTop < TOP_ROWS.length) w = TOP_ROWS[fromTop]
+    if (fromBottom < TOP_ROWS.length) w = Math.min(w, TOP_ROWS[fromBottom])
+    rows.push([y, w])
   }
+  for (const [y, w] of rows) p.rect(CX - w / 2, y, w, 1, dark)
+  for (const [y, w] of rows) p.rect(CX - w / 2, y, Math.max(1, w - (w >= BODY_W - 2 ? 3 : 2)), 1, body)
+  p.rect(6, BODY_TOP + 4, 2, 6, light); p.rect(7, BODY_TOP + 3, 2, 1, light); p.rect(6, BODY_TOP + 11, 2, 2, light) // shine on the left
 }
 
-function drawMouth(p: Painter, kind: number) {
+function dotEye(p: Painter, x: number, y: number, tall = 3) {
+  p.rect(x, y, 2, tall, INK)
+  p.px(x, y, '#fff')
+}
+
+/** Eyes and mouth. Eyes sit around y=12, the mouth around y=18. */
+function drawFace(p: Painter, kind: number) {
+  const smile = () => { p.px(10, 18, INK); p.px(11, 19, INK); p.px(12, 19, INK); p.px(13, 18, INK) }
   switch (kind) {
-    case 0: p.px(8, 14, INK); p.px(9, 15, INK); p.px(10, 15, INK); p.px(11, 14, INK); break
-    case 1: p.rect(8, 15, 4, 1, INK); break
-    case 2: p.rect(9, 14, 2, 2, INK); break
-    case 3: p.rect(7, 14, 6, 2, '#fff'); p.rect(7, 16, 6, 1, INK); p.rect(7, 13, 6, 1, INK); p.px(10, 14, INK); break
-    case 4: p.px(8, 15, INK); p.px(9, 15, INK); p.px(10, 15, INK); p.px(11, 14, INK); p.px(12, 13, INK); break
-    default: p.rect(8, 14, 4, 1, INK); p.rect(9, 15, 2, 2, '#ff6b81'); break
+    case 0: // friendly dots
+      dotEye(p, 8, 12); dotEye(p, 14, 12); smile()
+      break
+    case 1: // happy arcs
+      for (const x of [7, 14]) { p.px(x, 13, INK); p.px(x + 1, 12, INK); p.px(x + 2, 13, INK) }
+      p.rect(10, 18, 4, 1, INK); p.rect(11, 19, 2, 1, INK) // open smile
+      break
+    case 2: // surprised
+      dotEye(p, 8, 11, 4); dotEye(p, 14, 11, 4)
+      p.rect(11, 18, 2, 2, INK)
+      break
+    case 3: // wink
+      dotEye(p, 8, 12); p.rect(14, 13, 3, 1, INK); smile()
+      break
+    case 4: // sleepy
+      p.rect(7, 13, 3, 1, INK); p.rect(14, 13, 3, 1, INK)
+      p.rect(11, 18, 2, 1, INK)
+      break
+    default: // sunglasses
+      p.rect(6, 11, 12, 4, INK); p.rect(7, 12, 3, 1, '#7fc4ee'); p.rect(14, 12, 3, 1, '#7fc4ee')
+      smile()
   }
 }
 
@@ -148,47 +171,32 @@ function drawHat(p: Painter, kind: number) {
 const cache = new Map<string, HTMLCanvasElement>()
 const urls = new Map<string, string>()
 
-/** The character as a 20x24 sprite (feet on the bottom row). Cached per look. */
+const keyOf = (a: Avatar) => `${a.color}.${a.face}.${a.hat}`
+
+/** The character as a 24x32 sprite. Cached per look. */
 export function avatarSprite(a: Avatar): HTMLCanvasElement {
-  const key = `${a.color}.${a.face}.${a.hat}.${a.pants}`
+  const key = keyOf(a)
   const hit = cache.get(key)
   if (hit) return hit
 
   const p = new Painter(AVATAR_W, AVATAR_H)
   const body = COLORS[a.color % COLORS.length]
-  const dark = shade(body, -0.28)
-  const light = shade(body, 0.35)
-  const pants = PANTS[a.pants % PANTS.length]
 
-  // legs
-  p.rect(4, 19, 5, 4, dark); p.rect(11, 19, 5, 4, dark)
-  // body: rounded blob
-  p.rect(5, 5, 10, 1, body); p.rect(4, 6, 12, 1, body); p.rect(3, 7, 14, 11, body)
-  p.rect(4, 18, 12, 2, body)
-  // shading
-  p.rect(15, 7, 2, 11, dark); p.rect(15, 6, 1, 1, dark); p.rect(4, 18, 12, 2, dark)
-  p.rect(14, 5, 1, 1, dark)
-  p.rect(5, 7, 1, 4, light); p.rect(6, 6, 3, 1, light); p.rect(5, 6, 1, 1, light)
-  // pants
-  if (pants) {
-    p.rect(4, 15, 12, 4, pants); p.rect(3, 15, 1, 2, pants); p.rect(4, 19, 5, 4, pants); p.rect(11, 19, 5, 4, pants)
-    p.rect(15, 15, 1, 5, shade(pants, -0.3)); p.rect(4, 15, 12, 1, shade(pants, 0.25))
-    p.rect(9, 19, 2, 1, shade(pants, -0.3))
-  }
-  // shoes
-  p.rect(4, 22, 5, 1, INK); p.rect(11, 22, 5, 1, INK)
-
-  drawEyes(p, a.face % 6)
-  drawMouth(p, a.face % 6)
+  drawBody(p, body)
+  drawFace(p, a.face % 6)
+  // The hats were drawn for the first, wider body: move them onto the pill's head.
+  p.g.save()
+  p.g.translate(2, 1)
   drawHat(p, a.hat % HAT_NAMES.length)
+  p.g.restore()
 
-  p.outline(INK)
+  p.outline(shade(body, -0.72))
   cache.set(key, p.canvas)
   return p.canvas
 }
 
 export function avatarUrl(a: Avatar): string {
-  const key = `${a.color}.${a.face}.${a.hat}.${a.pants}`
+  const key = keyOf(a)
   let u = urls.get(key)
   if (!u) {
     u = avatarSprite(a).toDataURL()

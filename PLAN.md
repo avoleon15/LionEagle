@@ -13,7 +13,7 @@ Multiplayer trivia where the rarer your answer, the higher you climb. Inspired b
 | Same answer | Players who give the same answer get **the same points** (no penalty). |
 | Language | Spanish only (for now). |
 | Accounts | None. Nickname + character only. |
-| Character | Among Us-style: one shared body, customised with colour, face, hat and pants. Hair is not a separate option: it comes with the hat (2026-10-15). |
+| Character | a thin pill (capsule) with a face, no legs or arms; customised with colour, face and hat. Hair is not a separate option (it comes with the hat) and there are no pants (2026-10-16). |
 | Categories | The **host picks** the categories before the game. |
 | Modes | Lobby/party only. No daily solo mode for now. |
 | Audience | Friends first, public later. |
@@ -44,7 +44,7 @@ Five tiers, as described by the owner: 10, 30, 60, 80, 100. Seven questions per 
 3. **Ascent scene (done 2026-10-14):** pixel-art sky and ground (`client/src/Scene.tsx`, sprites in `client/src/pixel/`). A lion and an eagle stand on the ground; players rise in proportion to their points (700 = the top), with a hop, a "+points" popup, and sparkles for 60/80/100 answers. A green check shows who has answered. At the end every player launches off the top of the sky, lowest score first, winner last, and the ranking card shows the result. The sky fills the frame at any size (desktop: beside the question, phone: above it).
    - Characters are now pixel art everywhere (home preview, lobby, results). Dev-only gallery of every customiser option and the mascots: open `/sprites` while `npm run dev` runs.
    - The home screen is a grid of lions and eagles.
-   - Placeholder choices to confirm: the "disappear" rule (everyone launches at the end), no sound yet, the character hat art is first pass. Since 2026-10-15 there is no haircut option; 18 hat choices, 10 of them include hair (cap with long hair, horned viking helmet with braids, mohawk, afro, pigtails, beanie with curls, wizard, pirate, long blond hair, spiky, bun).
+   - Placeholder choices to confirm: the "disappear" rule (everyone launches at the end), no sound yet, the character hat art is first pass. Since 2026-10-15 there is no haircut option; since 2026-10-16 the character is a thin pill (24x32 sprite, variant D: flat rounded cap, dot eyes) with no pants, 6 faces and 18 hat choices, 10 of them include hair (cap with long hair, horned viking helmet with braids, mohawk, afro, pigtails, beanie with curls, wizard, pirate, long blond hair, spiky, bun).
 4. **Content (infrastructure done 2026-10-14; waiting for the owner's questions):**
    - Questions and answer lists live in SQLite. Statuses: draft, published, archived. Only complete questions can be published (at least 6 answers, one of 10 and one of 100, no duplicates); incomplete ones are saved as drafts automatically.
    - The 11 sample questions are seeded on first run (marked "Muestra") so the game is playable; the admin has a button to archive them all once real content exists.

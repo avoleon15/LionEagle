@@ -83,7 +83,7 @@ const emit = <T = any>(s: Socket, ev: string, ...args: unknown[]) =>
       resolve(r)
     })
   })
-const av = { color: 1, face: 2, hat: 4, pants: 5 }
+const av = { color: 1, face: 2, hat: 4 }
 
 // ---- 1. a client that does not send callbacks must not take the server down ----
 {
