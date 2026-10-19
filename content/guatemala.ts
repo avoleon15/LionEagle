@@ -33,7 +33,7 @@ export default [
   }, `Volcanes de Guatemala (la lista oficial tiene unos 37, aquí van los conocidos). "Volcán de Fuego" y "Fuego" cuentan igual. Culma y Lacandón de nivel 100 los puse de memoria: revisar. ${NIVELES} Revisada 2026-10-15: quité "Santa Clara" (no aparece en ninguna lista de volcanes de Guatemala); agregué Santo Tomás, Ixtepeque, Cerro Redondo, Tahual, Las Víboras, Cerro de Oro, Jumay, Las Flores, Almolonga y Cuilapa (Smithsonian / Wikipedia). Cuxliquel y Culma sí están verificados; Amatitlán es la caldera donde está el Pacaya.`),
 
   q('guatemala-lagos', 'Guatemala', 'Nombra un lago o laguna de Guatemala.', {
-    10: [lago('Atitlán|Atitlan'), lago('Izabal'), lago('Petén Itzá|Peten Itza', 'Lago Petén', 'Lago de Petén', 'Petén', 'Peten'), lago('Amatitlán|Amatitlan')],
+    10: [lago('Atitlán|Atitlan'), lago('Izabal'), 'Petén Itzá|Peten Itza|Lago Petén Itzá|Lago Peten Itza|Lago de Petén Itzá|Lago de Peten Itza|Laguna Petén Itzá|Lago Petén|Lago de Petén|Petén|Peten', lago('Amatitlán|Amatitlan')],
     30: [lago('Ayarza'), lago('Lachuá|Lachua'), lago('Güija|Guija'), lago('Chicabal')],
     60: [lago('Yaxhá|Yaxha'), lago('Ipala'), lago('Calderas'), lago('Atescatempa'), lago('Petexbatún|Petexbatun'), lago('Chichoj')],
     80: [lago('Macanché|Macanche'), lago('Sacnab'), lago('Quexil'), lago('Sacpuy'), lago('Brava', 'Yolnabaj'), lago('Magdalena'), lago('Ixpaco'), lago('Salpetén|Salpeten'), 'El Golfete|Golfete'],

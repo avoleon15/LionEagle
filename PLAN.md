@@ -100,3 +100,9 @@ Owner's brief: simpler, feels like a handheld pixel game, based on 1 Krillion (s
 - **End of game:** a table of everybody with your row marked ("Quedaste en el lugar N de M"); the button "Ver resultados de todos" shows what each friend answered in each question (`GameView.history`, sent only in the final stage).
 - **Categories:** shown in 6 groups (`client/src/categories.ts`: Videojuegos, Deportes, Cine/series/música, Ciencia y mundo, Comida y bebida, Guatemala; unknown ones go to "Otras"). Tapping a group turns all of its categories on or off; "Elegir categoría por categoría" shows the individual ones.
 - **"¿Quisiste poner…?":** a wrong answer that is a typo away from exactly one listed answer (`suggest` in `server/src/matching.ts`: 0 edits allowed under 5 letters, 1 up to 8, 2 from 9; a swap of two letters counts as one; ambiguous = no suggestion) comes back with `AnswerResult.suggestion`. Enter or Tab (or a tap) fills it in; Enter again sends it. The wrong try still counts toward the 6 attempts.
+
+## Afterwards (2026-10-18)
+- **Wide game background:** `client/public/bg/game-wide-1/2/3.png` (landscape, 1536x1024 each) are used on wide screens when they exist; otherwise the portrait pieces. Prompts in `art/PROMPTS.md` section 3. The grass line must be 18% up from the bottom of piece 1.
+- **Suggestion alert:** set `SUGGESTION_WEBHOOK_URL` (ntfy topic, Discord or Slack webhook, or any URL that takes a JSON `{text}`) and the server posts a message when somebody suggests a question (`server/src/notify.ts`). Suggestions always go to the admin inbox too.
+- **Fix:** opening the link of a different room no longer drops you back into the old saved room.
+- All corrected content was imported into the local database (backup of the old one kept in the session scratchpad).

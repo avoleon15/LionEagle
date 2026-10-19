@@ -3,7 +3,7 @@ import type { Avatar } from '../../shared/protocol'
 import { climbValue, type Climb } from './climb'
 import { AVATAR_H, AVATAR_W, avatarSprite } from './pixel/avatar'
 import { drawText, textWidth } from './pixel/font'
-import { MAX_SCORE, buildWorld, cloudSprite, drawStars, loadGamePicture, rng, type World } from './pixel/world'
+import { MAX_SCORE, buildWorld, cloudSprite, drawStars, loadGamePicture, rng, type GamePicture, type World } from './pixel/world'
 
 // The game backdrop: one tall pixel-art column (ground, sky, space) that fills the whole screen. Only the
 // player's own character is drawn; the camera follows it as it climbs. Everything is drawn at a tiny
@@ -36,7 +36,8 @@ export function Scene(props: Props) {
     let W = 160
     let H = H0
     let world: World | null = null
-    let picture: HTMLCanvasElement | HTMLImageElement | null = null
+    let picture: GamePicture | null = null
+    let pictureWide = false
     let clouds: Cloud[] = []
     let particles: Particle[] = []
     let cam = -1
@@ -76,16 +77,22 @@ export function Scene(props: Props) {
         H = nh
         build()
       }
+      const wide = cw > ch * 1.1
+      if (wide !== pictureWide) load(wide)
     }
     resize()
     const ro = new ResizeObserver(resize)
     ro.observe(el)
     // A picture made outside the code replaces the drawn column when it exists.
-    loadGamePicture().then((img) => {
-      if (!alive || !img) return
-      picture = img
-      build()
-    })
+    function load(wide: boolean) {
+      pictureWide = wide
+      loadGamePicture(wide).then((found) => {
+        if (!alive || !found || wide !== pictureWide) return
+        picture = found
+        build()
+      })
+    }
+    load(el.clientWidth > el.clientHeight * 1.1)
 
     const frame = () => {
       const nowMs = performance.now()

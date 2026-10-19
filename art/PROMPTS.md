@@ -101,6 +101,42 @@ I uploaded the middle section of a tall vertical game background. Create the NEX
 
 ---
 
+---
+
+## 3. Fondo largo HORIZONTAL (para computadora)
+
+Es lo mismo que el fondo largo vertical, pero en 3 imágenes horizontales de **1536×1024**. En pantallas anchas el juego las usa en lugar de las verticales (en celular sigue usando las verticales). Se guardan como `game-wide-1.png` (suelo), `game-wide-2.png` (cielo) y `game-wide-3.png` (espacio) en `client/public/bg/`. Los colores de empalme son los mismos de la tabla de arriba. La línea del pasto donde se para el personaje debe quedar a un **18 % de la altura, medida desde abajo**.
+
+Importante: en computadora el león y el águila se ven más chicos en proporción (cada uno ocupa aprox. 10 % y 13 % del ancho), y el centro de la imagen tiene que quedar limpio, porque ahí está la caja de la pregunta y el personaje.
+
+### 3A. Abajo: el suelo, 1536×1024 → `game-wide-1.png`
+
+```
+[pega aquí el bloque de estilo]
+
+Create the BOTTOM section of a very tall game background, but in LANDSCAPE format 3:2 (1536x1024). The bottom 24% is the ground seen from the side: two layers of rolling pixel hills behind (#6fb87a far, #58a85a near) with a low flat gap in the middle, then a flat strip of grass (#4aa63a with a lighter #8ee06a top edge and a darker #3f8f31 lower band) over brown dirt (#8a5a35 with a darker #6d4526 line and small pebbles). The line where a small character stands, the top edge of the grass, is exactly at 18% of the image height measured from the bottom. A few tiny flowers (yellow #ffd23f and pink #ff5c8a) and small stones on the grass. On the far left, a cute front-facing LION cub sitting on the grass (big round orange mane #a85a1c / #c9782e / #7c3b12, golden fur #e9a93f, small pink ears), about 10% of the image width. On the far right, a cute front-facing EAGLE (white head, golden beak and feet, brown body, wings spread wide) perched on a small grey rock, about 13% of the image width. The whole middle 60% of the width stays empty (only hills, grass and flowers). Above the ground the sky is made of flat horizontal bands from warm cream #fbf1c8 at the horizon, through #dcf0f8 and #c4e3f6, up to #a8d0f2 at the very top of the image. Chunky flat pixel clouds only near the left and right edges. The TOP EDGE of the image must be a plain flat band of #a8d0f2 with nothing touching it, so another image can continue above it. No text.
+```
+
+### 3B. En medio: el cielo, 1536×1024 → `game-wide-2.png`
+
+Sube la imagen 3A a ChatGPT y escribe:
+
+```
+[pega aquí el bloque de estilo]
+
+I uploaded the bottom section of a tall game background in landscape format. Create the NEXT section that goes directly ABOVE it, also LANDSCAPE 3:2 (1536x1024), same pixel-art style, same pixel size and same width. The BOTTOM EDGE of the new image must match the TOP EDGE of the uploaded image exactly (a plain flat band of #a8d0f2) so they can be stacked with no visible seam. Going upward, the sky changes in flat horizontal bands from #a8d0f2 to #6c9ee2 to medium blue #4f7fd3 at the very top. Add chunky flat pixel clouds (white with #d3e4f7 and #b9d0ec shadows) spread along the left and right thirds, several tiny far-away birds as dark "v" shapes, and one small cute hot-air balloon near the left edge. Keep the middle 40% of the width calm and almost empty. The TOP EDGE must be a plain flat band of #4f7fd3 with nothing touching it. No text.
+```
+
+### 3C. Arriba: el espacio, 1536×1024 → `game-wide-3.png`
+
+Sube la imagen 3B y escribe:
+
+```
+[pega aquí el bloque de estilo]
+
+I uploaded the middle section of a tall game background in landscape format. Create the NEXT section that goes directly ABOVE it, also LANDSCAPE 3:2 (1536x1024), same pixel-art style, same pixel size and same width. The BOTTOM EDGE of the new image must match the TOP EDGE of the uploaded image exactly (a plain flat band of #4f7fd3). Going upward, the sky changes in flat horizontal bands from #4f7fd3 to #2a4ba8, #1f3590 and finally dark navy #17235f at the top, and becomes outer space: many single-pixel stars in white and light blue #9db8ff, some bigger four-point sparkle stars, a cream crescent moon (#fff4c2) near the right edge, a small purple ringed planet (#c77dff with a golden #ffd23f ring) near the left edge, and two tiny shooting stars. Keep the middle 40% of the width calm, with only small stars. The top of the image is the highest point, so it is the darkest and most starry. No text.
+```
+
 ## Si algo sale distinto
 
 - **Sale con degradados, brillo o pixeles finos:** añade al final "strictly flat colors, big hard square pixels, no soft gradients, no glow, as if only 192 pixels wide".

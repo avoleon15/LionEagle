@@ -2,6 +2,7 @@
 // Checks every question's answer list and the matching rules.
 import * as db from './db'
 import { buildIndex, match, suggest, validateQuestion } from './matching'
+import { webhookRequest } from './notify'
 import { readdirSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { selectQuestions } from './selection'
@@ -280,6 +281,15 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   check(suggest(ix, 'Tika') === null, 'suggest: very short words get no suggestion')
   check(suggest(ix, 'montaña') === null && suggest(ix, 'playa de arena') === null, 'suggest: unrelated words get nothing')
   check(suggest(ix, 'semuc') === null, 'suggest: a different number of words is not "close"')
+}
+
+// ---- suggestion notifications ----
+{
+  check(JSON.parse(webhookRequest('https://discord.com/api/webhooks/1/x', 'hola').body).content === 'hola', 'notify: Discord gets {content}')
+  check(JSON.parse(webhookRequest('https://hooks.slack.com/services/a/b/c', 'hola').body).text === 'hola', 'notify: Slack gets {text}')
+  const nt = webhookRequest('https://ntfy.sh/mi-tema', 'hola')
+  check(nt.body === 'hola' && nt.headers.Title === 'Nueva sugerencia', 'notify: ntfy gets plain text with a title')
+  check(JSON.parse(webhookRequest('https://example.com/hook', 'hola').body).text === 'hola', 'notify: anything else gets {text}')
 }
 
 // ---- live scores ----

@@ -20,7 +20,10 @@ export function App() {
   const [busy, setBusy] = useState(false)
   const [connected, setConnected] = useState(socket.connected)
   // True while we try to get back into the room we were in, so a reload doesn't flash the home screen.
-  const [restoring, setRestoring] = useState(() => loadSession() !== null)
+  const [restoring, setRestoring] = useState(() => {
+    const s = loadSession()
+    return s !== null && (!codeFromUrl() || codeFromUrl() === s.code)
+  })
   const profileRef = useRef(profile)
   profileRef.current = profile
 
@@ -60,8 +63,15 @@ export function App() {
     const onConnect = () => {
       setConnected(true)
       // Come back to the room we were in (page reload or dropped connection).
-      const s = loadSession()
+      let s = loadSession()
       const p = profileRef.current
+      // Opening the link of a different room than the one we were in: that is where the player wants to go.
+      const wanted = codeFromUrl()
+      if (s && wanted && wanted !== s.code) {
+        socket.emit('room:leave')
+        clearSession()
+        s = null
+      }
       if (s && p.nick) {
         socket.emit('room:join', { code: s.code, nick: p.nick, avatar: p.avatar, playerId: s.playerId }, (res) => {
           // The player left (or went to another room) while this was on its way: ignore the answer.

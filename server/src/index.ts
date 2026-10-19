@@ -1,3 +1,4 @@
+import { notifySuggestion } from './notify'
 import { createServer } from 'node:http'
 import { existsSync } from 'node:fs'
 import { dirname, join as pathJoin } from 'node:path'
@@ -37,6 +38,7 @@ app.post('/api/suggest', express.json({ limit: '16kb' }), (req, res) => {
   }
   try {
     db.addSuggestion(req.body ?? {})
+    notifySuggestion(req.body ?? {})
     res.json({ ok: true })
   } catch (e) {
     if (e instanceof db.InputError) res.status(400).json({ error: e.message })

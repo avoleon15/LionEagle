@@ -9,17 +9,33 @@ import { Painter } from './paint'
 export const BG_FILES = {
   game: '/bg/game.png', // the tall column for the game, already stacked (ground at the bottom, space at the top)
   gameParts: ['/bg/game-1.png', '/bg/game-2.png', '/bg/game-3.png'], // or the same in 3 pieces: 1 = ground, 2 = sky, 3 = space
+  gameWideParts: ['/bg/game-wide-1.png', '/bg/game-wide-2.png', '/bg/game-wide-3.png'], // the same, landscape (1536x1024 each), used on wide screens
   home: '/bg/home.png', // portrait title background
   homeWide: '/bg/home-wide.png', // landscape title background
 }
 
 /** The game column as one picture: game.png, or the pieces stacked (piece 1 at the bottom). Null when there is none. */
-export async function loadGamePicture(): Promise<HTMLCanvasElement | HTMLImageElement | null> {
+export interface GamePicture {
+  image: HTMLCanvasElement | HTMLImageElement
+  wide: boolean // landscape pieces: they fill the whole width instead of a phone-width strip
+}
+
+/** On a wide screen the landscape pieces are used when they exist; otherwise the portrait ones. */
+export async function loadGamePicture(preferWide: boolean): Promise<GamePicture | null> {
+  if (preferWide) {
+    const wide = await stack(BG_FILES.gameWideParts)
+    if (wide) return { image: wide, wide: true }
+  }
   const whole = await loadImage(BG_FILES.game)
-  if (whole) return whole
-  const parts = (await Promise.all(BG_FILES.gameParts.map(loadImage))).filter((x): x is HTMLImageElement => x !== null)
+  if (whole) return { image: whole, wide: false }
+  const tall = await stack(BG_FILES.gameParts)
+  return tall ? { image: tall, wide: false } : null
+}
+
+async function stack(files: string[]): Promise<HTMLCanvasElement | null> {
+  const parts = (await Promise.all(files.map(loadImage))).filter((x): x is HTMLImageElement => x !== null)
   if (parts.length === 0) return null
-  const w = Math.min(512, ...parts.map((p) => p.naturalWidth))
+  const w = Math.min(files === BG_FILES.gameWideParts ? 768 : 512, ...parts.map((p) => p.naturalWidth))
   const heights = parts.map((p) => Math.round((p.naturalHeight * w) / p.naturalWidth))
   const c = document.createElement('canvas')
   c.width = w
@@ -158,14 +174,15 @@ export interface World {
  * The tall column the character climbs: ground with the mascots at the bottom, sky, then space.
  * Altitude marks on the left, like a depth meter.
  */
-export function buildWorld(W: number, H: number, picture: HTMLCanvasElement | HTMLImageElement | null): World {
-  if (picture) {
+export function buildWorld(W: number, H: number, found: GamePicture | null): World {
+  if (found) {
+    const picture = found.image
     // The picture is portrait. On a wide screen it is NOT stretched to the full width (the animals would be
     // giant next to the 24 px character): it keeps a phone-like width in the middle and every row of the
     // sides is filled with that row's most common colour, so the sky bands and the grass simply continue.
     const pw = picture instanceof HTMLImageElement ? picture.naturalWidth : picture.width
     const ph = picture instanceof HTMLImageElement ? picture.naturalHeight : picture.height
-    const PW = Math.min(W, PICTURE_W)
+    const PW = found.wide ? W : Math.min(W, PICTURE_W)
     const h = Math.max(H + 40, Math.round((ph * PW) / pw))
     const strip = new Painter(PW, h)
     strip.g.imageSmoothingEnabled = true
@@ -190,7 +207,8 @@ export function buildWorld(W: number, H: number, picture: HTMLCanvasElement | HT
     }
     p.g.drawImage(strip.canvas, x0, 0)
     // The grass line of the bottom picture is 261 px (of 1536) above its lower edge; a piece is 2:3.
-    const footLow = h - Math.round(PW * 1.5 * (261 / 1536))
+    // Portrait pieces are 2:3 with the grass line 261/1536 above the lower edge; landscape ones are 3:2 with it 18% up.
+    const footLow = found.wide ? h - Math.round(PW * (2 / 3) * 0.18) : h - Math.round(PW * 1.5 * (261 / 1536))
     marks(p, footLow, FOOT_HIGH, x0)
     return { canvas: p.canvas, footLow, footHigh: FOOT_HIGH, picture: true }
   }
