@@ -11,14 +11,6 @@ export default [
     100: ['Stuart Sutcliffe|Stu Sutcliffe|Sutcliffe', 'Ian Stewart', 'Jimmie Nicol|Jimmy Nicol', 'Dick Taylor', 'Mike Grose', 'Barry Mitchell', 'Doug Bogie', 'Adam Lambert'],
   }, `Las tres bandas británicas más famosas juntas (cada una sola daría muy pocas respuestas). Beatles: los 4 más Pete Best y Stuart Sutcliffe (antes de la fama) y Jimmie Nicol (reemplazó a Ringo en una gira de 1964). Queen: los 4 más los bajistas de 1970-71 (Mike Grose, Barry Mitchell, Doug Bogie). Adam Lambert no es integrante oficial (es "Queen + Adam Lambert") pero lo acepté en 100; quitarlo si se quiere estricto. Stones: los oficiales, incluido Ian Stewart (pianista fundador) y Dick Taylor (bajista de 1962). No se aceptan "Taylor" ni "John" solos porque hay varios. ${NIVELES}`),
 
-  q('integrantes-bts-blackpink', 'Música', 'Nombra un integrante de BTS o de BLACKPINK.', {
-    10: ['Jungkook|Jung Kook|Jeon Jungkook|JK', 'Lisa|Lalisa|Lalisa Manobal', 'Jennie|Jennie Kim|Kim Jennie'],
-    30: ['Jimin|Park Jimin', 'Rosé|Rose|Roseanne Park|Park Chaeyoung|Chaeyoung', 'V|Taehyung|Kim Taehyung|Tae'],
-    60: ['Jisoo|Kim Jisoo|Ji Soo', 'Suga|Min Yoongi|Yoongi|Agust D', 'Jin|Kim Seokjin|Seokjin'],
-    80: ['RM|Rap Monster|Kim Namjoon|Namjoon'],
-    100: ['J-Hope|J Hope|JHope|Jung Hoseok|Hoseok'],
-  }, `Los 7 de BTS y las 4 de BLACKPINK (listas cerradas). Se aceptan nombres artísticos y nombres reales. Niveles pensados para un grupo latino: Jungkook, Lisa y Jennie son las más conocidas; RM y J-Hope las que menos se nombran fuera del fandom (discutible). ${NIVELES}`),
-
   q('generos-musicales', 'Música', 'Nombra un género musical.', {
     10: ['Rock|Rock music', 'Pop', 'Reguetón|Reggaetón|Reggaeton|Regueton|Reggueton|Perreo', 'Rap|Hip hop|Hip-hop|Hiphop', 'Salsa', 'Cumbia'],
     30: ['Jazz|Yaz', 'Música clásica|Clásica|Clásico|Classical', 'Merengue', 'Bachata', 'Metal|Heavy metal|Heavy', 'Punk|Punk rock', 'Blues', 'Country|Música country', 'Electrónica|Música electrónica|EDM|Electro', 'Trap', 'Reggae|Regué|Rege', 'R&B|RnB|Rhythm and blues|Rhythm & blues', 'Funk', 'Disco|Música disco', 'Soul', 'Balada|Baladas|Baladas románticas', 'Bolero', 'Ranchera|Música ranchera|Rancheras', 'Mariachi|Música de mariachi', 'Corridos|Corrido', 'Norteña|Música norteña|Norteño', 'Banda|Música de banda|Banda sinaloense', 'Tango', 'Flamenco', 'Ópera|Opera', 'K-pop|Kpop|Pop coreano', 'Rock and roll|Rock & roll|Rock n roll|Rock\'n\'roll|Rocanrol'],

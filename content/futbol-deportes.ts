@@ -19,20 +19,21 @@ export default [
     100: ['Steaua Bucarest|Steaua|Steaua Bucharest'],
   }, `Los 24 clubes campeones de Europa hasta 2026 (PSG ganó la final del 30 de mayo de 2026 contra el Arsenal por penales, verificado). El Arsenal NO ha ganado: es una respuesta inválida a propósito. ${NIVELES} Revisada 2026-10-15: lista de 24 verificada (PSG campeón 2025-26 confirmado); solo agregué alias.`),
 
-  q('mundial-campeones', 'Fútbol', 'Nombra un país que haya ganado un Mundial de fútbol.', {
-    10: ['Brasil|Brazil', 'Argentina', 'Francia|France', 'Alemania|Germany|Alemania Occidental|West Germany|RFA', 'España|Spain'],
-    30: ['Italia|Italy'],
-    60: ['Uruguay'],
-    100: ['Inglaterra|England'],
-  }, `Los 8 campeones del mundo hasta el Mundial 2026 (ganó España 1-0 a Argentina en la final del 19 de julio de 2026, verificado). Son pocos para que la pregunta dure; sirve como pregunta de relleno. ${NIVELES} Revisada 2026-10-15: final de 2026 verificada; moví España a 10 (campeona vigente), Uruguay a 60 (en Latinoamérica se conoce mucho más que Inglaterra) e Inglaterra a 100; alias Alemania Occidental.`),
+  q('mundial-finalistas', 'Fútbol', 'Nombra un país que haya llegado a la final de un Mundial de fútbol.', {
+    10: ['Brasil|Brazil', 'Argentina', 'Francia|France', 'Alemania|Germany|Alemania Occidental|West Germany|RFA'],
+    30: ['España|Spain', 'Italia|Italy', 'Países Bajos|Paises Bajos|Holanda|Netherlands'],
+    60: ['Inglaterra|England', 'Uruguay', 'Croacia|Croatia'],
+    80: ['Hungría|Hungria|Hungary', 'Suecia|Sweden'],
+    100: ['Checoslovaquia|Czechoslovakia|Chequia|República Checa|Republica Checa|Czech Republic'],
+  }, `Los 13 países que han jugado una final de Mundial (campeones y subcampeones) hasta el Mundial 2026, que ganó España 1-0 a Argentina el 19 de julio de 2026 (verificado). Alemania cuenta con Alemania Occidental, y Chequia con Checoslovaquia (finales de 1934 y 1962). Es una lista cerrada y corta (13), por debajo de las 30 que se buscan; el dueño la pidió así. Reemplaza a la pregunta de países campeones. ${NIVELES}`),
 
-  q('premier-league-equipos', 'Fútbol', 'Nombra un equipo de la Premier League actual.', {
+  q('premier-league-equipos', 'Fútbol', 'Nombra un equipo que haya jugado alguna vez en la Premier League.', {
     10: ['Manchester United|Man United|Man U|Man Utd|Manchester Utd', 'Liverpool', 'Chelsea', 'Arsenal', 'Manchester City|Man City', 'Tottenham|Tottenham Hotspur|Spurs'],
-    30: ['Newcastle|Newcastle United|Newcastle Utd', 'Everton', 'Aston Villa|Villa', 'Leeds United|Leeds', 'Brighton|Brighton & Hove Albion|Brighton and Hove Albion'],
-    60: ['Crystal Palace|Palace', 'Nottingham Forest|Forest|Nottingham', 'Fulham', 'Brentford', 'Bournemouth|AFC Bournemouth', 'Sunderland'],
-    80: ['Ipswich Town|Ipswich'],
-    100: ['Coventry City|Coventry', 'Hull City|Hull'],
-  }, `Los 20 equipos de la temporada 2026-27 (comenzó el 21 de agosto de 2026; ascendieron Coventry, Ipswich y Hull; descendieron West Ham, Burnley y Wolves; verificado). West Ham, Burnley y Wolves NO cuentan. Hay que actualizar la lista cada temporada. ${NIVELES} Revisada 2026-10-15: ascensos y descensos verificados de nuevo; solo agregué alias.`),
+    30: ['Newcastle|Newcastle United|Newcastle Utd', 'Everton', 'Aston Villa|Villa', 'West Ham|West Ham United', 'Leicester City|Leicester', 'Leeds United|Leeds', 'Southampton', 'Wolverhampton|Wolverhampton Wanderers|Wolves'],
+    60: ['Brighton|Brighton & Hove Albion|Brighton and Hove Albion', 'Crystal Palace|Palace', 'Nottingham Forest|Forest|Nottingham', 'Fulham', 'Brentford', 'Bournemouth|AFC Bournemouth', 'Burnley', 'Sunderland', 'West Bromwich Albion|West Brom|West Bromwich', 'Watford', 'Norwich City|Norwich', 'Stoke City|Stoke', 'Swansea City|Swansea', 'Sheffield United|Sheffield Utd', 'Middlesbrough|Boro', 'Blackburn Rovers|Blackburn', 'Bolton Wanderers|Bolton', 'Wigan Athletic|Wigan', 'Portsmouth|Pompey', 'Cardiff City|Cardiff', 'Hull City|Hull', 'Ipswich Town|Ipswich'],
+    80: ['Queens Park Rangers|QPR', 'Birmingham City|Birmingham', 'Coventry City|Coventry', 'Derby County|Derby', 'Charlton Athletic|Charlton', 'Reading', 'Sheffield Wednesday', 'Blackpool', 'Huddersfield Town|Huddersfield', 'Luton Town|Luton', 'Wimbledon'],
+    100: ['Barnsley', 'Bradford City|Bradford', 'Swindon Town|Swindon', 'Oldham Athletic|Oldham'],
+  }, `Los 51 clubes que han jugado al menos una temporada en la Premier League desde su primera edición (1992-93) hasta la 2026-27, incluidos los que hoy están en divisiones inferiores. Los niveles van por qué tan seguido se nombra cada uno, no por cuántas temporadas jugó. Cambia la pregunta anterior ("equipo de la Premier League actual"), que había que actualizar cada temporada. ${NIVELES}`),
 
   q('nfl-equipos', 'Deportes', 'Nombra un equipo de la NFL.', {
     10: ['Dallas Cowboys|Cowboys|Dallas|Vaqueros|Vaqueros de Dallas', 'New England Patriots|Patriots|Patriotas|New England|Pats', 'Kansas City Chiefs|Chiefs|Kansas City|Kansas|Jefes', 'San Francisco 49ers|49ers|Niners|San Francisco|Forty Niners|Gambusinos', 'Green Bay Packers|Packers|Green Bay|Empacadores'],

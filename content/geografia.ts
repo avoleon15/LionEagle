@@ -57,13 +57,6 @@ export default [
     100: ['Kosovo'],
   }, `Los 6 países que eran repúblicas de Yugoslavia más Kosovo (era provincia de Serbia; declaró su independencia en 2008 y no todos los países lo reconocen: decisión tuya si se queda). "Yugoslavia" no cuenta. ${NIVELES}`),
 
-  q('sudamerica-paises', 'Geografía', 'Nombra un país de Sudamérica.', {
-    10: ['Brasil|Brazil', 'Argentina', 'Colombia', 'Chile'],
-    30: ['Perú|Peru', 'Venezuela', 'Ecuador', 'Uruguay', 'Bolivia', 'Paraguay'],
-    80: ['Guyana'],
-    100: ['Surinam|Suriname'],
-  }, `Los 12 países independientes. La Guayana Francesa no cuenta: es territorio de Francia. ${NIVELES} Revisada 2026-10-15: moví Bolivia y Paraguay a 30 (los hispanohablantes los nombran casi tanto como al resto).`),
-
   q('asia-paises', 'Geografía', 'Nombra un país de Asia.', {
     10: ['China', 'Japón|Japon|Japan', 'India', 'Corea del Sur|South Korea'],
     30: ['Tailandia|Thailand', 'Vietnam', 'Indonesia', 'Filipinas|Philippines', 'Corea del Norte|North Korea', 'Arabia Saudita|Arabia Saudí|Saudi Arabia', 'Irán|Iran', 'Irak|Iraq', 'Israel', 'Turquía|Turkey|Türkiye', 'Pakistán|Pakistan', 'Singapur|Singapore', 'Malasia|Malaysia', 'Emiratos Árabes Unidos|Emiratos|Dubái|United Arab Emirates|UAE'],

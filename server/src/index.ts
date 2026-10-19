@@ -143,6 +143,15 @@ io.on('connection', (socket) => {
     }
   })
 
+  socket.on('game:hint', (ack) => {
+    const reply = replier<{ examples: string[] }>(ack)
+    try {
+      reply({ ok: true, data: rooms.hint(socket.id) })
+    } catch (e) {
+      reply({ ok: false, error: errorText(e) })
+    }
+  })
+
   socket.on('game:reset', (ack) => {
     const reply = replier<null>(ack)
     try {

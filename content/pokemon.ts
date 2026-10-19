@@ -11,35 +11,32 @@ export default [
     100: ['Kakuna', 'Nidorina', 'Nidorino', 'Parasect', 'Farfetch\'d|Farfetchd|Farfetch d|Farfetch', 'Doduo', 'Dodrio', 'Tangela', 'Omastar'],
   }, `Los 151 Pokémon de la primera generación (Kanto). Nidoran macho/hembra: se acepta "Nidoran" a secas como la hembra (mismo nivel). ${NIVELES} Revisada 2026-10-15: lista completa verificada (151); moví Metapod a 80 (es muy recordado por el anime) y agregué errores de escritura comunes (Charizar, Bulbasur, Evee, Garados, Mewtu...).`),
 
-  q('pokemon-gen1-fuego', 'Pokémon', 'Nombra un Pokémon tipo fuego de la primera generación.', {
+  q('pokemon-tipo-fuego', 'Pokémon', 'Nombra un Pokémon tipo fuego.', {
     10: ['Charmander|Charmandar', 'Charizard|Charizar|Charizad'],
-    30: ['Flareon', 'Arcanine|Arcanin', 'Vulpix'],
-    60: ['Ninetales|Ninetails', 'Growlithe', 'Ponyta', 'Moltres'],
-    80: ['Charmeleon', 'Rapidash'],
-    100: ['Magmar'],
-  }, `Los 12 Pokémon de Kanto con tipo fuego (Charizard y Moltres son fuego/volador). ${NIVELES}`),
-
-  q('pokemon-gen1-agua', 'Pokémon', 'Nombra un Pokémon tipo agua de la primera generación.', {
-    10: ['Squirtle|Squirtel|Squirtl|Esquirtle', 'Blastoise|Blastois', 'Magikarp|Magicarp', 'Gyarados|Garados|Gyarado|Giarados', 'Psyduck|Psiduck|Sayduck'],
-    30: ['Vaporeon', 'Lapras', 'Wartortle', 'Golduck', 'Starmie', 'Slowpoke'],
-    60: ['Staryu', 'Poliwag', 'Horsea', 'Seadra', 'Tentacool', 'Tentacruel', 'Krabby', 'Goldeen', 'Shellder', 'Slowbro'],
-    80: ['Cloyster', 'Kingler', 'Seaking', 'Poliwhirl', 'Poliwrath', 'Dewgong', 'Seel', 'Omanyte', 'Kabuto'],
-    100: ['Omastar', 'Kabutops'],
-  }, `Los 32 Pokémon de Kanto con tipo agua (incluye los de tipo doble, como Gyarados, Lapras o Starmie). ${NIVELES}`),
-
-  q('pokemon-gen1-planta', 'Pokémon', 'Nombra un Pokémon tipo planta de la primera generación.', {
+    30: ['Vulpix', 'Ninetales|Ninetails', 'Arcanine|Arcanin', 'Flareon', 'Moltres', 'Typhlosion', 'Blaziken', 'Infernape'],
+    60: ['Charmeleon', 'Growlithe', 'Ponyta', 'Rapidash', 'Magmar', 'Cyndaquil', 'Quilava', 'Houndoom', 'Entei', 'Ho-Oh', 'Torchic', 'Combusken', 'Torkoal', 'Chimchar', 'Monferno', 'Heatran', 'Victini', 'Tepig', 'Emboar', 'Darmanitan', 'Chandelure', 'Volcarona', 'Reshiram', 'Fennekin', 'Braixen', 'Delphox', 'Talonflame', 'Litten', 'Incineroar', 'Scorbunny', 'Raboot', 'Cinderace', 'Fuecoco'],
+    80: ['Slugma', 'Magcargo', 'Houndour', 'Magby', 'Numel', 'Camerupt', 'Magmortar'],
+    100: ['Pignite', 'Pansear', 'Simisear', 'Darumaka', 'Litwick', 'Lampent', 'Heatmor', 'Larvesta', 'Fletchinder', 'Litleo', 'Pyroar', 'Volcanion', 'Torracat', 'Oricorio', 'Salandit', 'Salazzle', 'Turtonator', 'Blacephalon', 'Carkol', 'Coalossal', 'Sizzlipede', 'Centiskorch', 'Crocalor', 'Skeledirge', 'Charcadet', 'Armarouge', 'Ceruledge', 'Scovillain', 'Ferropolilla|Iron Moth', 'Chi-Yu', 'Flamariete|Gouging Fire'],
+  }, `Los 81 Pokémon de las generaciones 1 a 9 (hasta el n.º 1025, con los DLC de Paldea) que tienen el tipo fuego, solo o combinado con otro (los de tipo doble cuentan). Nombres oficiales en español. Se excluyen Megaevoluciones, formas regionales y otras formas, a menos que sean otro Pokémon con nombre propio. Lista cotejada con PokeAPI (base de datos de los juegos). ${NIVELES}`),
+  q('pokemon-tipo-agua', 'Pokémon', 'Nombra un Pokémon tipo agua.', {
+    10: ['Squirtle|Squirtel|Esquirtle', 'Psyduck|Psiduck|Sayduck', 'Magikarp|Magicarp', 'Gyarados|Garados|Gyarado|Giarados'],
+    30: ['Blastoise|Blastois', 'Lapras', 'Vaporeon', 'Totodile', 'Feraligatr', 'Wooper', 'Mudkip', 'Swampert', 'Kyogre', 'Piplup', 'Greninja'],
+    60: ['Wartortle', 'Golduck', 'Poliwag', 'Poliwhirl', 'Poliwrath', 'Tentacool', 'Tentacruel', 'Slowpoke', 'Slowbro', 'Dewgong', 'Shellder', 'Cloyster', 'Krabby', 'Kingler', 'Horsea', 'Seadra', 'Goldeen', 'Seaking', 'Staryu', 'Starmie', 'Omanyte', 'Kabuto', 'Croconaw', 'Chinchou', 'Lanturn', 'Marill', 'Azumarill', 'Corsola', 'Mantine', 'Kingdra', 'Suicune', 'Marshtomp', 'Sharpedo', 'Wailord', 'Milotic', 'Prinplup', 'Empoleon', 'Buizel', 'Floatzel', 'Palkia', 'Manaphy', 'Oshawott', 'Samurott', 'Froakie', 'Frogadier', 'Popplio', 'Primarina', 'Sobble', 'Inteleon', 'Quaxly', 'Quaquaval'],
+    80: ['Seel', 'Omastar', 'Kabutops', 'Politoed', 'Quagsire', 'Slowking', 'Qwilfish', 'Remoraid', 'Octillery', 'Lotad', 'Lombre', 'Ludicolo', 'Wingull', 'Pelipper', 'Surskit', 'Carvanha', 'Wailmer', 'Barboach', 'Whiscash', 'Corphish', 'Crawdaunt', 'Feebas', 'Spheal', 'Sealeo', 'Walrein', 'Clamperl', 'Huntail', 'Gorebyss', 'Relicanth', 'Luvdisc', 'Bibarel', 'Shellos', 'Gastrodon', 'Finneon', 'Lumineon', 'Mantyke', 'Phione'],
+    100: ['Dewott', 'Panpour', 'Simipour', 'Tympole', 'Palpitoad', 'Seismitoad', 'Basculin', 'Tirtouga', 'Carracosta', 'Ducklett', 'Swanna', 'Frillish', 'Jellicent', 'Alomomola', 'Keldeo', 'Binacle', 'Barbaracle', 'Skrelp', 'Clauncher', 'Clawitzer', 'Volcanion', 'Brionne', 'Wishiwashi', 'Mareanie', 'Toxapex', 'Dewpider', 'Araquanid', 'Wimpod', 'Golisopod', 'Pyukumuku', 'Bruxish', 'Tapu Fini', 'Drizzile', 'Chewtle', 'Drednaw', 'Cramorant', 'Arrokuda', 'Barraskewda', 'Dracovish', 'Arctovish', 'Basculegion', 'Quaxwell', 'Wiglett', 'Wugtrio', 'Finizen', 'Palafin', 'Veluza', 'Dondozo', 'Tatsugiri', 'Ferrosaco|Iron Bundle', 'Ondulagua|Walking Wake'],
+  }, `Los 154 Pokémon de las generaciones 1 a 9 (hasta el n.º 1025, con los DLC de Paldea) que tienen el tipo agua, solo o combinado con otro (los de tipo doble cuentan). Nombres oficiales en español. Se excluyen Megaevoluciones, formas regionales y otras formas, a menos que sean otro Pokémon con nombre propio. Lista cotejada con PokeAPI (base de datos de los juegos). ${NIVELES}`),
+  q('pokemon-tipo-planta', 'Pokémon', 'Nombra un Pokémon tipo planta.', {
     10: ['Bulbasaur|Bulbasur|Bulbasor|Bulbasaurio'],
-    30: ['Venusaur|Venasaur|Venusaurio', 'Ivysaur', 'Oddish', 'Exeggutor'],
-    60: ['Vileplume', 'Gloom', 'Victreebel', 'Bellsprout', 'Exeggcute'],
-    80: ['Weepinbell', 'Paras', 'Tangela'],
-    100: ['Parasect'],
-  }, `Los 14 Pokémon de Kanto con tipo planta. ${NIVELES}`),
-
-  q('pokemon-gen1-electrico', 'Pokémon', 'Nombra un Pokémon tipo eléctrico de la primera generación.', {
+    30: ['Ivysaur', 'Venusaur|Venasaur|Venusaurio', 'Oddish', 'Exeggutor', 'Chikorita', 'Treecko', 'Sceptile', 'Turtwig', 'Rowlet', 'Decidueye', 'Sprigatito'],
+    60: ['Gloom', 'Vileplume', 'Bellsprout', 'Victreebel', 'Exeggcute', 'Tangela', 'Bayleef', 'Meganium', 'Bellossom', 'Hoppip', 'Sunflora', 'Celebi', 'Grovyle', 'Lotad', 'Ludicolo', 'Seedot', 'Shiftry', 'Breloom', 'Cacnea', 'Grotle', 'Torterra', 'Roserade', 'Snover', 'Abomasnow', 'Leafeon', 'Shaymin', 'Snivy', 'Serperior', 'Whimsicott', 'Lilligant', 'Chespin', 'Chesnaught', 'Trevenant', 'Dartrix', 'Tsareena', 'Grookey', 'Rillaboom', 'Floragato', 'Meowscarada', 'Ogerpon'],
+    80: ['Paras', 'Parasect', 'Weepinbell', 'Skiploom', 'Jumpluff', 'Sunkern', 'Lombre', 'Nuzleaf', 'Shroomish', 'Roselia', 'Cacturne', 'Lileep', 'Cradily', 'Tropius', 'Budew', 'Wormadam', 'Cherubi', 'Cherrim', 'Carnivine', 'Tangrowth'],
+    100: ['Servine', 'Pansage', 'Simisage', 'Sewaddle', 'Swadloon', 'Leavanny', 'Cottonee', 'Petilil', 'Maractus', 'Deerling', 'Sawsbuck', 'Foongus', 'Amoonguss', 'Ferroseed', 'Ferrothorn', 'Virizion', 'Quilladin', 'Skiddo', 'Gogoat', 'Phantump', 'Pumpkaboo', 'Gourgeist', 'Fomantis', 'Lurantis', 'Morelull', 'Shiinotic', 'Bounsweet', 'Steenee', 'Dhelmise', 'Tapu Bulu', 'Kartana', 'Thwackey', 'Gossifleur', 'Eldegoss', 'Applin', 'Flapple', 'Appletun', 'Zarude', 'Calyrex', 'Smoliv', 'Dolliv', 'Arboliva', 'Bramblin', 'Brambleghast', 'Toedscool', 'Toedscruel', 'Capsakid', 'Scovillain', 'Furioseta|Brute Bonnet', 'Wo-Chien', 'Ferroverdor|Iron Leaves', 'Dipplin', 'Poltchageist', 'Sinistcha', 'Hydrapple'],
+  }, `Los 127 Pokémon de las generaciones 1 a 9 (hasta el n.º 1025, con los DLC de Paldea) que tienen el tipo planta, solo o combinado con otro (los de tipo doble cuentan). Nombres oficiales en español. Se excluyen Megaevoluciones, formas regionales y otras formas, a menos que sean otro Pokémon con nombre propio. Lista cotejada con PokeAPI (base de datos de los juegos). ${NIVELES}`),
+  q('pokemon-tipo-electrico', 'Pokémon', 'Nombra un Pokémon tipo eléctrico.', {
     10: ['Pikachu'],
-    30: ['Raichu', 'Jolteon', 'Zapdos'],
-    60: ['Magnemite', 'Voltorb', 'Electabuzz'],
-    80: ['Magneton'],
-    100: ['Electrode'],
-  }, `Los 9 Pokémon de Kanto con tipo eléctrico. Electrode va en 100 solo para completar la escala (todos son bastante conocidos). ${NIVELES}`),
+    30: ['Raichu', 'Jolteon', 'Zapdos', 'Pichu', 'Mareep', 'Ampharos', 'Luxray', 'Rotom'],
+    60: ['Magnemite', 'Magneton', 'Voltorb', 'Electrode', 'Electabuzz', 'Chinchou', 'Lanturn', 'Raikou', 'Manectric', 'Shinx', 'Magnezone', 'Electivire', 'Emolga', 'Joltik', 'Galvantula', 'Thundurus', 'Zekrom', 'Dedenne', 'Togedemaru', 'Tapu Koko', 'Zeraora', 'Yamper', 'Boltund', 'Toxtricity', 'Morpeko', 'Pawmi', 'Miraidon'],
+    80: ['Flaaffy', 'Elekid', 'Electrike', 'Plusle', 'Minun', 'Luxio', 'Pachirisu'],
+    100: ['Blitzle', 'Zebstrika', 'Tynamo', 'Eelektrik', 'Eelektross', 'Stunfisk', 'Helioptile', 'Heliolisk', 'Charjabug', 'Vikavolt', 'Xurkitree', 'Toxel', 'Pincurchin', 'Dracozolt', 'Arctozolt', 'Regieleki', 'Pawmo', 'Pawmot', 'Tadbulb', 'Bellibolt', 'Wattrel', 'Kilowattrel', 'Pelarena|Sandy Shocks', 'Ferropalmas|Iron Hands', 'Ferropúas|Iron Thorns', 'Electrofuria|Raging Bolt'],
+  }, `Los 69 Pokémon de las generaciones 1 a 9 (hasta el n.º 1025, con los DLC de Paldea) que tienen el tipo eléctrico, solo o combinado con otro (los de tipo doble cuentan). Nombres oficiales en español. Se excluyen Megaevoluciones, formas regionales y otras formas, a menos que sean otro Pokémon con nombre propio. Lista cotejada con PokeAPI (base de datos de los juegos). ${NIVELES}`),
 ]

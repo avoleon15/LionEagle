@@ -57,6 +57,8 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
   const [shake, setShake] = useState(0)
   const [sending, setSending] = useState(false)
   const [locked, setLocked] = useState(false)
+  const [examples, setExamples] = useState<string[] | null>(null)
+  const [hintBusy, setHintBusy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const roundRef = useRef(game.round)
   roundRef.current = game.round
@@ -70,8 +72,22 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
     setHint(null)
     setLocked(false)
     setSending(false)
+    setExamples(null)
     inputRef.current?.focus()
   }, [game.round])
+
+  const askHint = () => {
+    if (hintBusy || examples) return
+    setHintBusy(true)
+    const round = game.round
+    socket.timeout(8000).emit('game:hint', (err, res) => {
+      setHintBusy(false)
+      if (round !== roundRef.current) return
+      if (err) return setMsg('No llegó la pista. Intenta de nuevo.')
+      if (!res.ok) return setMsg(res.error)
+      setExamples(res.data.examples)
+    })
+  }
 
   const useHint = () => {
     if (!hint) return
@@ -161,6 +177,19 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
           Enviar
         </button>
       </form>
+      {examples ? (
+        <p className="examples">
+          <span>Pista · ejemplos de respuestas válidas</span>
+          {examples.map((e) => (
+            <b key={e}>{e}</b>
+          ))}
+          <small>Hay muchas más. Solo son para que entiendas qué se pide.</small>
+        </p>
+      ) : (
+        <button type="button" className="hintbtn" onClick={askHint} disabled={hintBusy || !connected}>
+          Pista
+        </button>
+      )}
       {hint && (
         <button type="button" className="didyou" onClick={useHint}>
           ¿Quisiste poner <b>{hint.label}</b>? <small>Enter o Tab para usarla</small>
@@ -228,14 +257,13 @@ function Final({ room, game, me, onLeave }: Props) {
   const isHost = room.hostId === me
   const ranked = [...room.players].sort((a, b) => (game.scores[b.id] ?? 0) - (game.scores[a.id] ?? 0))
   const myPlace = ranked.findIndex((p) => (game.scores[p.id] ?? 0) === (game.scores[me] ?? 0)) + 1
-  const byId = new Map(room.players.map((p) => [p.id, p]))
   return (
     <section className="box final">
       <p className="kicker">Resultado final</p>
       <h2 className="prompt">{myPlace === 1 ? '¡Ganaste!' : `Quedaste en el lugar ${myPlace} de ${ranked.length}`}</h2>
       <Table players={room.players} scores={game.scores} me={me} />
       {error && <p className="error">{error}</p>}
-      <button onClick={() => setDetails((d) => !d)}>{details ? 'Ocultar resultados' : 'Ver resultados de todos'}</button>
+      <button onClick={() => setDetails((d) => !d)}>{details ? 'Ocultar mis resultados' : 'Ver mis resultados'}</button>
       {details && (
         <div className="details">
           {(game.history ?? []).map((round, i) => (
@@ -245,8 +273,7 @@ function Final({ room, game, me, onLeave }: Props) {
               </p>
               <ul>
                 {[...round.results]
-                  .filter((r) => byId.has(r.playerId))
-                  .sort((a, b) => b.points - a.points)
+                  .filter((r) => r.playerId === me)
                   .map((r) => (
                     <li key={r.playerId} className={(r.playerId === me ? 'me ' : '') + tierClass(r.points)}>
                       <span className="what">{r.answer ?? '—'}</span>

@@ -292,6 +292,22 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   check(JSON.parse(webhookRequest('https://example.com/hook', 'hola').body).text === 'hola', 'notify: anything else gets {text}')
 }
 
+// ---- hints ----
+{
+  const members = ['a', 'b']
+  const game = new Game({ members: () => members, active: () => members, changed: () => {} }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })))
+  const q0 = QUESTIONS.find((x) => x.prompt === game.view().prompt)!
+  const h = game.hint('a')
+  const tiers = h.examples.map((l) => q0.answers.find((a) => a.label === l)?.points)
+  check(h.examples.length === 3 && tiers.join() === '10,30,60', `hint: three real answers from three depths (${tiers.join(',')})`)
+  check(game.hint('b').examples.join() === h.examples.join(), 'hint: everybody in the round gets the same one')
+  let refusedHint = false
+  try { game.hint('zzz') } catch (e) { refusedHint = e instanceof GameError }
+  check(refusedHint, 'hint: somebody who is not in the game gets an error')
+  check(game.view().scores.a === 0, 'hint: asking for it costs nothing')
+  game.dispose()
+}
+
 // ---- live scores ----
 {
   const members = ['a', 'b']
@@ -375,7 +391,7 @@ for (const f of readdirSync(contentDir).filter((n) => n.endsWith('.ts'))) {
     byId.set(x.id, x.answers.length)
   }
 }
-const known: Record<string, number> = { elementos: 118, 'africa-paises': 54, 'estados-eeuu': 50, 'pokemon-gen1': 151, 'urss-paises': 15, 'sudamerica-paises': 12, 'nfl-equipos': 32, 'nba-equipos': 30, 'premier-league-equipos': 20, 'guatemala-departamentos': 22, 'pokemon-gen1-fuego': 12, 'pokemon-gen1-agua': 32, 'pokemon-gen1-planta': 14, 'pokemon-gen1-electrico': 9 }
+const known: Record<string, number> = { elementos: 118, 'africa-paises': 54, 'estados-eeuu': 50, 'pokemon-gen1': 151, 'urss-paises': 15, 'nfl-equipos': 32, 'nba-equipos': 30, 'premier-league-equipos': 51, 'guatemala-departamentos': 22 }
 for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content ${id} has exactly ${n} answers (has ${byId.get(id)})`)
 
 process.exit(failed ? 1 : 0)

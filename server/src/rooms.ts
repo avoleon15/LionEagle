@@ -297,6 +297,12 @@ export function answer(socketId: string, text: string) {
   return found.room.game.submit(found.player.id, text)
 }
 
+export function hint(socketId: string) {
+  const found = findBySocket(socketId)
+  if (!found?.room.game) throw new RoomError('No hay una partida en curso.')
+  return found.room.game.hint(found.player.id)
+}
+
 /** Host sends everyone back to the lobby once the game is over. */
 export function reset(socketId: string): Room {
   const found = findBySocket(socketId)

@@ -27,19 +27,18 @@ export default [
     100: ['Phione', 'Código Cero|Type: Null|Type Null|Tipo Cero', 'Silvally', 'Cosmog', 'Cosmoem', 'Regieleki', 'Regidrago', 'Glastrier', 'Spectrier', 'Enamorus', 'Wo-Chien|Wochien', 'Chien-Pao|Chienpao', 'Ting-Lu|Tinglu', 'Chi-Yu|Chiyu', 'Okidogi', 'Munkidori', 'Fezandipiti', 'Pecharunt', 'Ondulagua|Walking Wake', 'Ferroverdor|Iron Leaves', 'Flamariete|Gouging Fire', 'Electrofuria|Raging Bolt', 'Ferromole|Iron Boulder', 'Ferrotesta|Iron Crown'],
   }, `Los legendarios y míticos de las generaciones 1 a 9 (lista de Bulbapedia, octubre de 2026). Los 6 Pokémon paradoja "legendarios" de los DLC (Ondulagua, Ferroverdor, Flamariete, Electrofuria, Ferromole, Ferrotesta) no son oficialmente legendarios pero los acepté en 100 (nombres en español verificados en WikiDex). Los Ultraentes (Nihilego, Buzzwole...) NO cuentan. ${NIVELES}`),
 
-  q('pokemon-gen1-psiquico', 'Pokémon', 'Nombra un Pokémon tipo psíquico de la primera generación.', {
-    10: ['Mewtwo|Mew Two|Mew 2', 'Mew', 'Alakazam|Alakazan'],
-    30: ['Abra', 'Kadabra', 'Slowpoke', 'Mr. Mime|Mr Mime|Mister Mime|Señor Mime', 'Jynx'],
-    60: ['Slowbro', 'Hypno', 'Drowzee', 'Exeggutor'],
-    80: ['Starmie'],
-    100: ['Exeggcute'],
-  }, `Los 14 Pokémon de Kanto que tienen el tipo psíquico (solo o combinado): Abra, Kadabra, Alakazam, Slowpoke, Slowbro, Drowzee, Hypno, Exeggcute, Exeggutor, Starmie, Mr. Mime, Jynx, Mewtwo y Mew. Las formas regionales (Slowpoke de Galar...) no cambian nada. ${NIVELES}`),
-
-  q('pokemon-gen1-veneno', 'Pokémon', 'Nombra un Pokémon tipo veneno de la primera generación.', {
-    10: ['Ekans', 'Arbok', 'Koffing', 'Grimer'],
-    30: ['Weezing', 'Muk', 'Nidoking', 'Nidoqueen', 'Gengar', 'Bulbasaur|Bulbasor', 'Zubat', 'Beedrill', 'Venusaur', 'Gastly', 'Tentacool'],
-    60: ['Golbat', 'Haunter', 'Ivysaur', 'Nidoran hembra|Nidoran|Nidoran F', 'Nidoran macho|Nidoran M', 'Oddish', 'Tentacruel', 'Weedle', 'Venonat', 'Venomoth', 'Bellsprout', 'Victreebel|Victreebell', 'Gloom', 'Vileplume'],
-    80: ['Nidorina', 'Nidorino', 'Weepinbell'],
-    100: ['Kakuna'],
-  }, `Los 33 Pokémon de Kanto con tipo veneno (solo o combinado): las líneas de Bulbasaur, Weedle, Ekans, Nidoran (las dos), Zubat, Oddish, Venonat, Bellsprout, Tentacool, Grimer, Koffing y Gastly. "Nidoran" a secas cuenta como la hembra, igual que en la pregunta de la primera generación. ${NIVELES}`),
+  q('pokemon-tipo-psiquico', 'Pokémon', 'Nombra un Pokémon tipo psíquico.', {
+    10: ['Mewtwo|Mew two|Mewtu|Mew 2'],
+    30: ['Abra', 'Alakazam|Alakazan', 'Slowpoke', 'Mew', 'Espeon', 'Wobbuffet', 'Gardevoir', 'Metagross'],
+    60: ['Kadabra', 'Slowbro', 'Drowzee', 'Hypno', 'Exeggutor', 'Starmie', 'Mr. Mime', 'Jynx', 'Natu', 'Xatu', 'Slowking', 'Lugia', 'Celebi', 'Ralts', 'Kirlia', 'Beldum', 'Metang', 'Latias', 'Latios', 'Jirachi', 'Deoxys', 'Gallade', 'Uxie', 'Mesprit', 'Azelf', 'Cresselia', 'Musharna', 'Reuniclus', 'Espurr', 'Meowstic', 'Solgaleo', 'Lunala', 'Necrozma', 'Hatterene', 'Armarouge'],
+    80: ['Exeggcute', 'Unown', 'Girafarig', 'Smoochum', 'Meditite', 'Medicham', 'Spoink', 'Grumpig', 'Lunatone', 'Solrock', 'Baltoy', 'Claydol', 'Chimecho', 'Wynaut', 'Chingling', 'Bronzor', 'Bronzong', 'Mime Jr.'],
+    100: ['Victini', 'Munna', 'Woobat', 'Swoobat', 'Sigilyph', 'Gothita', 'Gothorita', 'Gothitelle', 'Solosis', 'Duosion', 'Elgyem', 'Beheeyem', 'Meloetta', 'Delphox', 'Inkay', 'Malamar', 'Hoopa', 'Oranguru', 'Bruxish', 'Tapu Lele', 'Cosmog', 'Cosmoem', 'Dottler', 'Orbeetle', 'Hatenna', 'Hattrem', 'Mr. Rime', 'Indeedee', 'Calyrex', 'Wyrdeer', 'Rabsca', 'Flittle', 'Espathra', 'Veluza', 'Farigiraf', 'Colagrito|Scream Tail', 'Ferroverdor|Iron Leaves', 'Munkidori', 'Ferromole|Iron Boulder', 'Ferrotesta|Iron Crown'],
+  }, `Los 102 Pokémon de las generaciones 1 a 9 (hasta el n.º 1025, con los DLC de Paldea) que tienen el tipo psíquico, solo o combinado con otro (los de tipo doble cuentan). Nombres oficiales en español. Se excluyen Megaevoluciones, formas regionales y otras formas, a menos que sean otro Pokémon con nombre propio. Lista cotejada con PokeAPI (base de datos de los juegos). ${NIVELES}`),
+  q('pokemon-tipo-veneno', 'Pokémon', 'Nombra un Pokémon tipo veneno.', {
+    10: ['Bulbasaur|Bulbasur|Bulbasor|Bulbasaurio', 'Ekans', 'Gengar', 'Koffing'],
+    30: ['Venusaur|Venasaur|Venusaurio', 'Arbok', 'Nidoking', 'Zubat', 'Muk', 'Gastly', 'Haunter', 'Weezing'],
+    60: ['Ivysaur', 'Weedle', 'Beedrill', 'Nidoqueen', 'Golbat', 'Oddish', 'Gloom', 'Vileplume', 'Venomoth', 'Bellsprout', 'Victreebel', 'Tentacool', 'Tentacruel', 'Grimer', 'Spinarak', 'Ariados', 'Crobat', 'Seviper', 'Roserade', 'Stunky', 'Skuntank', 'Croagunk', 'Toxicroak', 'Trubbish', 'Garbodor', 'Amoonguss', 'Dragalge', 'Toxapex', 'Salazzle', 'Toxtricity', 'Eternatus'],
+    80: ['Kakuna', 'Nidoran hembra|Nidoran|Nidoran F', 'Nidorina', 'Nidoran macho|Nidoran M', 'Nidorino', 'Venonat', 'Weepinbell', 'Qwilfish', 'Dustox', 'Roselia', 'Gulpin', 'Swalot', 'Budew', 'Skorupi', 'Drapion'],
+    100: ['Venipede', 'Whirlipede', 'Scolipede', 'Foongus', 'Skrelp', 'Mareanie', 'Salandit', 'Nihilego', 'Poipole', 'Naganadel', 'Toxel', 'Sneasler', 'Overqwil', 'Shroodle', 'Grafaiai', 'Varoom', 'Revavroom', 'Glimmet', 'Glimmora', 'Clodsire', 'Ferropolilla|Iron Moth', 'Okidogi', 'Munkidori', 'Fezandipiti', 'Pecharunt'],
+  }, `Los 83 Pokémon de las generaciones 1 a 9 (hasta el n.º 1025, con los DLC de Paldea) que tienen el tipo veneno, solo o combinado con otro (los de tipo doble cuentan). Nombres oficiales en español. Se excluyen Megaevoluciones, formas regionales y otras formas, a menos que sean otro Pokémon con nombre propio. Lista cotejada con PokeAPI (base de datos de los juegos). ${NIVELES}`),
 ]

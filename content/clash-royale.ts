@@ -41,13 +41,6 @@ export default [
     100: ['Tower Princess|Princesa de la torre|Princesa de torre'],
   }, `Cartas comunes (incluye a la tropa de torre común). ${NIVELES} Revisada 2026-10-15: alias en español (Duendes con lanzas, Lanzafuegos, Paquete real, Torre Tesla).`),
 
-  q('clash-royale-campeones', 'Videojuegos', 'Nombra un campeón de Clash Royale.', {
-    10: ['Archer Queen|Reina arquera', 'Golden Knight|Caballero dorado', 'Skeleton King|Rey esqueleto', 'Mighty Miner|Gran minero|Minero poderoso', 'Monk|Monje'],
-    30: ['Little Prince|Principito|Príncipe pequeño'],
-    60: ['Goblinstein|Duendenstein', 'Boss Bandit|Jefa bandida|Bandida jefa|Jefe bandido'],
-    100: ['Guardienne', 'Monster|Monstruo'],
-  }, `Los 10 campeones actuales (octubre de 2026). Salen campeones nuevos cada pocos meses: agregar los que falten. ${NIVELES} Revisada 2026-10-15: los 10 coinciden con Pocket Tactics; alias Gran minero, Jefa bandida.`),
-
   q('clash-royale-hechizos', 'Videojuegos', 'Nombra un hechizo de Clash Royale.', {
     10: ['Fireball|Bola de fuego', 'Arrows|Flechas', 'Zap|Descarga', 'The Log|El tronco|Tronco|Log', 'Lightning|Rayo', 'Poison|Veneno', 'Rocket|Cohete', 'Freeze|Hielo|Congelación', 'Rage|Furia|Rabia', 'Tornado', 'Giant Snowball|Bola de nieve|Bola de nieve gigante|Snowball', 'Graveyard|Cementerio', 'Goblin Barrel|Barril de duendes|Barril de goblins'],
     30: ['Earthquake|Terremoto', 'Barbarian Barrel|Barril de bárbaros', 'Royal Delivery|Paquete real|Entrega real'],
@@ -56,7 +49,7 @@ export default [
     100: ['Goblin Curse|Maldición duende|Maldición de duendes'],
   }, `Hechizos del juego (se incluyen Goblin Barrel y Graveyard porque se lanzan como hechizos). Clone y Mirror no aparecen en la lista que usé; si siguen en el juego, agregarlos. ${NIVELES} Revisada 2026-10-15: agregué Clon y Espejo (nada indica que los hayan quitado del juego).`),
 
-  q('clash-royale-edificios', 'Videojuegos', 'Nombra un edificio de Clash Royale.', {
+  q('clash-royale-edificios', 'Videojuegos', 'Nombra una estructura de Clash Royale.', {
     10: ['Cannon|Cañón', 'Mortar|Mortero', 'Tesla|Torre Tesla', 'Inferno Tower|Torre infernal', 'Bomb Tower|Torre bombardera|Torre de bombas|Torre bomba', 'X-Bow|X Bow|Xbow|Ballesta|Ballesta X'],
     30: ['Tombstone|Lápida|Tumba', 'Barbarian Hut|Choza de bárbaros|Cabaña de bárbaros', 'Goblin Hut|Choza de duendes|Cabaña de duendes', 'Elixir Collector|Recolector de elixir'],
     60: ['Goblin Drill|Excavadora de duendes|Taladro de duendes'],

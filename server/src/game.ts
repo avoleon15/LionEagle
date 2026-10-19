@@ -19,6 +19,19 @@ export interface GameHooks {
   changed: () => void
 }
 
+/**
+ * The question's hint: three accepted answers from different depths (a common one, a fairly common one and a
+ * fairly rare one). It only helps to understand what kind of answer is wanted; there are many more.
+ */
+export function pickHint(q: Question): string[] {
+  const out: string[] = []
+  for (const tier of [10, 30, 60]) {
+    const pool = q.answers.filter((a) => a.points === tier && !out.includes(a.label))
+    if (pool.length > 0) out.push(pool[Math.floor(Math.random() * pool.length)].label)
+  }
+  return out
+}
+
 export class Game {
   private stage: GameStage = 'answering'
   private round = 0
@@ -29,6 +42,7 @@ export class Game {
   private scores = new Map<string, number>()
   private reveal: Reveal | null = null
   private history: RoundRecord[] = []
+  private hintExamples: string[] = []
   private timer: NodeJS.Timeout | null = null
   private readonly questions: Question[]
   private readonly indexes: Index[]
@@ -78,6 +92,7 @@ export class Game {
     this.wrong.clear()
     this.reveal = null
     this.index = this.indexes[this.round]
+    this.hintExamples = pickHint(this.question)
     this.schedule(ROUND_MS, () => this.finishRound())
     if (notify) this.changed()
   }
@@ -148,6 +163,13 @@ export class Game {
     this.changed()
     this.checkEarlyEnd()
     return { valid: true, label: hit.label, points: hit.points }
+  }
+
+  /** The hint is free and the same for everybody in the round. */
+  hint(playerId: string): { examples: string[] } {
+    if (this.stage !== 'answering') throw new GameError('Ya terminó el tiempo.')
+    if (!this.scores.has(playerId)) throw new GameError('No estás en la partida.')
+    return { examples: [...this.hintExamples] }
   }
 
   /** Ends the round as soon as every connected player has answered or run out of tries. */

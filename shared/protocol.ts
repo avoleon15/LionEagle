@@ -124,6 +124,7 @@ export interface ClientToServer {
   'game:start': (ack: (r: Ack<null>) => void) => void
   'room:categories': (names: string[], ack: (r: Ack<null>) => void) => void
   'game:answer': (text: string, ack: (r: Ack<AnswerResult>) => void) => void
+  'game:hint': (ack: (r: Ack<{ examples: string[] }>) => void) => void
   'game:reset': (ack: (r: Ack<null>) => void) => void
 }
 

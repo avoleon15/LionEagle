@@ -404,3 +404,10 @@ main.admin.login { display: grid; place-items: center; }
 .pickers .picker span { padding: 6px 2px; font-size: 0.95rem; font-family: var(--pixel); }
 .app .dice { width: 32px; height: 32px; }
 .app .maker .join input { min-width: 0; }
+
+/* hint (like Krillion's: three accepted examples from different depths, free) */
+.app button.hintbtn { align-self: flex-start; padding: 6px 14px; background: #0a0f2c; color: var(--rim); border-color: var(--rim); box-shadow: 3px 3px 0 var(--ink); }
+.examples { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; background: #0a0f2c; border: 2px dashed var(--rim); text-align: left; }
+.examples span { flex-basis: 100%; font-family: var(--pixel); font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--rim); }
+.examples b { padding: 2px 8px; background: var(--panel-2); color: var(--text); font-weight: 600; }
+.examples small { flex-basis: 100%; color: var(--muted); }
