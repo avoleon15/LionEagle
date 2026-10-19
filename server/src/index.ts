@@ -82,9 +82,10 @@ io.on('connection', (socket) => {
     const reply = replier<JoinResult>(ack)
     try {
       const p = rooms.sanitizeJoin(payload)
-      // A socket only lives in one room at a time.
+      // A socket holds one seat at a time: joining anything other than its own seat gives that seat up first
+      // (otherwise one connection could keep a second "connected" seat alive forever).
       const current = rooms.findBySocket(socket.id)
-      if (current && current.room.code !== p.code) {
+      if (current && !(current.room.code === p.code && current.player.id === p.playerId)) {
         socket.leave(current.room.code)
         const left = rooms.leave(socket.id)
         if (left) broadcast(left)
@@ -162,7 +163,7 @@ io.on('connection', (socket) => {
 })
 
 http.listen(PORT, () => {
-  console.log(`León Águila server on :${PORT}`)
+  console.log(`León server on :${PORT}`)
   // The token is shown only where a person is looking (a terminal), never in hosting logs.
   if (admin.source === 'env') console.log('Admin: /admin (token en la variable ADMIN_TOKEN)')
   else if (process.stdout.isTTY || admin.source === 'generated') console.log(`Admin: /admin  (token: ${admin.token})`)

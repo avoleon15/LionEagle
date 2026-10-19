@@ -241,6 +241,8 @@ export function allCategories(): string[] {
 export function playable(names: string[] | null): Question[] {
   return listQuestions({ status: 'published' })
     .filter((q) => !names || names.includes(q.category))
+    // Checked again because the matching rules may have changed since the question was published.
+    .filter((q) => validateQuestion(q).length === 0)
     .map(({ id, category, prompt, answers }) => ({ id, category, prompt, answers }))
 }
 

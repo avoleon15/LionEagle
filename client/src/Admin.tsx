@@ -553,7 +553,7 @@ export function Admin() {
   return (
     <main className="admin">
       <header>
-        <h1>León Águila · Administrador</h1>
+        <h1>León · Administrador</h1>
         <nav>
           <button className={tab === 'preguntas' ? 'on' : ''} onClick={() => setTab('preguntas')}>Preguntas</button>
           <button className={tab === 'sugerencias' ? 'on' : ''} onClick={() => setTab('sugerencias')}>

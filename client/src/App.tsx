@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CODE_LENGTH, type Ack, type JoinResult, type RoomState } from '../../shared/protocol'
+import { Backdrop } from './Backdrop'
 import { Game } from './Game'
 import { Home } from './Home'
 import { Lobby } from './Lobby'
@@ -46,7 +47,10 @@ export function App() {
       setError('')
       const prev = loadSession()
       const playerId = prev && code && prev.code === code.toUpperCase() ? prev.playerId : undefined
-      socket.emit('room:join', { code, nick: p.nick, avatar: p.avatar, playerId }, enter)
+      // A reply lost with a dropped connection would otherwise leave the buttons disabled forever.
+      socket.timeout(10_000).emit('room:join', { code, nick: p.nick, avatar: p.avatar, playerId }, (err, res) =>
+        enter(err ? { ok: false, error: 'No se pudo conectar con el servidor. Intenta de nuevo.' } : res),
+      )
     },
     [enter],
   )
@@ -60,6 +64,9 @@ export function App() {
       const p = profileRef.current
       if (s && p.nick) {
         socket.emit('room:join', { code: s.code, nick: p.nick, avatar: p.avatar, playerId: s.playerId }, (res) => {
+          // The player left (or went to another room) while this was on its way: ignore the answer.
+          const now = loadSession()
+          if (!now || now.code !== s.code || now.playerId !== s.playerId) return setRestoring(false)
           if (res.ok) {
             enter(res)
           } else {
@@ -77,7 +84,10 @@ export function App() {
         setRestoring(false)
       }
     }
-    const onDisconnect = () => setConnected(false)
+    const onDisconnect = () => {
+      setConnected(false)
+      setBusy(false)
+    }
     socket.on('room:state', onState)
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
@@ -97,17 +107,19 @@ export function App() {
     window.history.replaceState(null, '', '/')
   }
 
+  const playing = !!(room && playerId && room.phase === 'playing' && room.game)
   return (
     <div className="app">
       {!connected && <div className="banner">Reconectando…</div>}
+      {!playing && <Backdrop />}
       {restoring && !room ? (
-        <main className="home">
-          <p className="tagline">Volviendo a tu sala…</p>
+        <main className="screen">
+          <p className="box hint">Volviendo a tu sala…</p>
         </main>
       ) : null}
       {restoring && !room ? null : room && playerId ? (
-        room.phase === 'playing' && room.game ? (
-          <Game room={room} game={room.game} me={playerId} onLeave={leave} />
+        playing && room.game ? (
+          <Game key={room.gameNo} room={room} game={room.game} me={playerId} connected={connected} onLeave={leave} />
         ) : (
           <Lobby room={room} me={playerId} nick={profile.nick} onLeave={leave} />
         )

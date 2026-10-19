@@ -70,6 +70,45 @@ export function match(index: Index, text: string): Hit | null {
   return null
 }
 
+/** Edit distance counting a swap of two neighbouring letters as one edit. */
+function distance(a: string, b: string): number {
+  const d: number[][] = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
+  for (let j = 0; j <= b.length; j++) d[0][j] = j
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost)
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1)
+    }
+  }
+  return d[a.length][b.length]
+}
+
+/** How many edits still count as "almost": none for very short words, so people cannot fish for answers. */
+const allowedEdits = (len: number) => (len < 5 ? 0 : len < 9 ? 1 : 2)
+
+/**
+ * For a wrong answer that is only a typo away from exactly one listed answer: that answer's label.
+ * Null when nothing is close, or when two different answers are equally close (we do not guess).
+ */
+export function suggest(index: Index, text: string): string | null {
+  const typed = keys(text)
+  if (typed.length === 0) return null
+  let best = Infinity
+  const labels = new Set<string>()
+  for (const t of typed) {
+    const max = allowedEdits(t.length)
+    for (const [key, hit] of index) {
+      if (Math.abs(key.length - t.length) > max) continue
+      const dist = distance(t, key)
+      if (dist > max) continue
+      if (dist < best) { best = dist; labels.clear() }
+      if (dist === best) labels.add(hit.label)
+    }
+  }
+  return labels.size === 1 ? [...labels][0] : null
+}
+
 export function validateQuestion(q: Question): string[] {
   const problems: string[] = []
   if (q.answers.length < 6) problems.push('Necesita al menos 6 respuestas.')

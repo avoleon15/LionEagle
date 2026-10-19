@@ -35,8 +35,8 @@ Five tiers, as described by the owner: 10, 30, 60, 80, 100. Seven questions per 
 
 1. **Skeleton (done 2026-10-14):** create room, join by 4-letter code or link (`/ABCD`), player list, character picker (placeholder art), host starts the game, reconnect.
 2. **Core round (done 2026-10-14):** 7 questions, server-owned timer, server-side answer matching (ignores accents, case, articles, simple plurals), scoring, reveal screen, final ranking, host returns everyone to the lobby.
-   - Defaults chosen (change freely): 20 s per question, 7 s reveal. Override with `LE_ROUND_MS` / `LE_REVEAL_MS`.
-   - The first valid answer locks in for the round. Invalid (unlisted) answers are free to retry. A round ends early once every connected player has answered.
+   - Defaults: 30 s per question (owner, 2026-10-15), 9 s reveal. Override with `LE_ROUND_MS` / `LE_REVEAL_MS`.
+   - The first valid answer locks in for the round and its points count at once (live scores since 2026-10-15). Unlisted answers can be retried up to `MAX_ATTEMPTS`. A round ends early once every connected player has answered.
    - Disconnected players keep their seat and score for 60 s; the round does not wait for them.
    - `server/src/questions.ts` holds 11 **sample** questions with placeholder tiers. They are for testing only; replace them with the owner's questions and researched answer lists.
    - Tests: `npm run test -w server` checks every question's answer list and the matching rules.
@@ -82,3 +82,21 @@ Low findings fixed afterwards (2026-10-15):
 - **Regexes:** the accent-stripping ranges use `\u0300-\u036f` escapes instead of invisible literal characters.
 - **Dependencies:** vite 5 -> 7 (client); `npm audit` reports 0 vulnerabilities.
 Nothing known is left open from the review.
+
+## Arcade redesign (2026-10-15)
+Owner's brief: simpler, feels like a handheld pixel game, based on 1 Krillion (screenshots taken from krillion.me: square dark boxes with a double border, pixel font, hard shadows, full-screen pixel background).
+- **Look:** every game screen has a full-screen pixel background (`client/src/Backdrop.tsx` for home and lobby, `client/src/Scene.tsx` while playing) and square boxes in the Pixelify Sans font (Google Fonts). The admin keeps its plain look.
+- **Backgrounds from ChatGPT:** drop PNGs in `client/public/bg/` (`home.png`, `home-wide.png`, `game-1.png` ground, `game-2.png` sky, `game-3.png` space, or one tall `game.png`). Missing files fall back to the drawn backgrounds. Prompts and names in `art/PROMPTS.md`.
+- **Round flow:** the question fills a box in the middle of the screen (30 s, pixel timer bar). After answering, a card shows the answer, its rarity and the points; then the camera follows the player's own character as it climbs slowly (more points = longer climb) while the score counts up. Only your own character is drawn; the others are in the scoreboard. When the round ends a box shows what everybody said and the rarest answers. At the end the character takes off into space and the final ranking appears.
+- **Scoreboard:** always top left, 3 rows: you, the player above and the player below (two below if you are first, two above if you are last), with a tick for those who already answered.
+- **Lobby:** the players stand on a strip of grass; categories are square toggles.
+- **Characters:** 14 faces (new: little square moustache, dead X eyes, black eye, sugar skull, dizzy, handlebar moustache, vampire, crying) and 28 hats (new: Dutch cycling cap with blond hair, halo, devil horns, axe in the head, arrow through the head, tin-foil hat, traffic cone, underpants, party hat, bloody bandage). A "?" button picks a random look.
+- **Robustness (audit the same day):** a game that cannot start leaves the room in the lobby (indexes are built before anything changes, and `db.playable` re-checks every question); one connection can only hold one seat; a host who is still away gets replaced as soon as somebody reconnects; the seat-expiry timer is wrapped; the start no longer broadcasts a half-made state; the client gives up a lost join reply after 10 s, does not send an answer twice or while offline, ignores a rejoin that finishes after the player left, and remounts the game screen for each new game (`RoomState.gameNo`).
+- **Fondos (2026-10-18):** el dueño generó las 5 imágenes en ChatGPT y están en `client/public/bg/`. En pantallas anchas la imagen vertical no se estira: se queda a ~150 px lógicos en el centro y los lados se rellenan con el color más común de cada fila (`buildWorld`, `PICTURE_W`).
+
+## Simplification round (2026-10-18)
+- **Fonts:** Krillion uses VT323 (a pixel font) for titles and the system sans-serif for paragraphs and buttons (checked with the page's computed styles). Here the pixel font (Pixelify Sans) is only for titles, labels and buttons; everything else, including the countdown digits, is Inter (neutral, tabular numbers).
+- **After each question:** the player sees only the points won (and the tier name), then a table of all friends with the points of that round and their total. No answers, no "rarest answers" list.
+- **End of game:** a table of everybody with your row marked ("Quedaste en el lugar N de M"); the button "Ver resultados de todos" shows what each friend answered in each question (`GameView.history`, sent only in the final stage).
+- **Categories:** shown in 6 groups (`client/src/categories.ts`: Videojuegos, Deportes, Cine/series/música, Ciencia y mundo, Comida y bebida, Guatemala; unknown ones go to "Otras"). Tapping a group turns all of its categories on or off; "Elegir categoría por categoría" shows the individual ones.
+- **"¿Quisiste poner…?":** a wrong answer that is a typo away from exactly one listed answer (`suggest` in `server/src/matching.ts`: 0 edits allowed under 5 letters, 1 up to 8, 2 from 9; a swap of two letters counts as one; ambiguous = no suggestion) comes back with `AnswerResult.suggestion`. Enter or Tab (or a tap) fills it in; Enter again sends it. The wrong try still counts toward the 6 attempts.

@@ -1,7 +1,7 @@
 // Run with: npm run test -w server
 // Checks every question's answer list and the matching rules.
 import * as db from './db'
-import { buildIndex, match, validateQuestion } from './matching'
+import { buildIndex, match, suggest, validateQuestion } from './matching'
 import { readdirSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { selectQuestions } from './selection'
@@ -254,6 +254,46 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   check(g2.submit('a', q1.answers[0].label).valid === true, 'attempts: a right answer still works after several wrong ones')
   check(!g2.view().exhausted.includes('a'), 'attempts: a player who answered is not "out of tries"')
   g2.dispose()
+}
+
+// ---- a question that cannot be played is caught before the game starts ----
+{
+  const qs = QUESTIONS.slice(0, 7).map((x) => ({ ...x, answers: [...x.answers] }))
+  qs[3].answers.push({ label: 'Otra distinta', aliases: [qs[3].answers[0].label], points: 100 }) // two answers that collide
+  let notified = 0
+  let threw = false
+  try { new Game({ members: () => ['a', 'b'], active: () => ['a', 'b'], changed: () => notified++ }, qs) } catch { threw = true }
+  check(threw && notified === 0, 'start: a game with a broken question fails at once, without announcing anything')
+}
+
+// ---- "did you mean" ----
+{
+  const sq = { id: 'sug', category: 'x', prompt: 'x', answers: [
+    { label: 'Semuc Champey', aliases: [], points: 80 }, { label: 'Tikal', aliases: [], points: 10 }, { label: 'Antigua Guatemala', aliases: [], points: 10 },
+    { label: 'Lago de Atitlán', aliases: [], points: 10 }, { label: 'Rio Dulce', aliases: [], points: 30 }, { label: 'Flores', aliases: [], points: 60 }, { label: 'Pacaya', aliases: [], points: 100 },
+  ] }
+  const ix = buildIndex(sq)
+  check(suggest(ix, 'semuc champei') === 'Semuc Champey', 'suggest: one wrong letter in a long answer gives the right label')
+  check(suggest(ix, 'semuc champy') === 'Semuc Champey', 'suggest: a missing letter is still close')
+  check(suggest(ix, 'Antigua Guatemla') === 'Antigua Guatemala', 'suggest: accents and a missing letter')
+  check(suggest(ix, 'Tikla') === 'Tikal', 'suggest: two swapped letters count as one edit')
+  check(suggest(ix, 'Tika') === null, 'suggest: very short words get no suggestion')
+  check(suggest(ix, 'montaña') === null && suggest(ix, 'playa de arena') === null, 'suggest: unrelated words get nothing')
+  check(suggest(ix, 'semuc') === null, 'suggest: a different number of words is not "close"')
+}
+
+// ---- live scores ----
+{
+  const members = ['a', 'b']
+  const game = new Game({ members: () => members, active: () => members, changed: () => {} }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })))
+  const q0 = QUESTIONS.find((x) => x.prompt === game.view().prompt)!
+  const hit = game.submit('a', q0.answers[0].label)
+  check(game.view().stage === 'answering' && game.view().scores.a === hit.points && game.view().scores.b === 0, 'scores: the points count as soon as the answer locks in')
+  game.submit('b', q0.answers[1].label)
+  const after = game.view()
+  const ra = after.reveal?.results.find((r) => r.playerId === 'a')
+  check(after.stage === 'reveal' && after.scores.a === hit.points && ra?.points === hit.points, 'scores: ending the round does not add the points a second time')
+  game.dispose()
 }
 
 // ---- answer log cap ----

@@ -4,7 +4,7 @@ export const MAX_PLAYERS = 12
 export const MAX_NICK = 16
 export const CODE_LENGTH = 4
 
-export const AVATAR_OPTIONS = { color: 12, face: 6, hat: 18 } as const
+export const AVATAR_OPTIONS = { color: 12, face: 14, hat: 28 } as const
 
 export interface Avatar {
   color: number
@@ -63,6 +63,13 @@ export interface GameView {
   answered: string[] // players who already locked in this round (never the answers)
   exhausted: string[] // players who used up their wrong guesses this round
   reveal: Reveal | null
+  history: RoundRecord[] | null // only in the final stage: what everybody answered in every round
+}
+
+export interface RoundRecord {
+  prompt: string
+  category: string
+  results: RevealResult[]
 }
 
 export interface CategoryInfo {
@@ -72,6 +79,7 @@ export interface CategoryInfo {
 
 export interface RoomState {
   code: string
+  gameNo: number // changes when a new game starts
   hostId: string
   phase: Phase
   players: PlayerView[]
@@ -105,6 +113,7 @@ export interface AnswerResult {
   label?: string
   points?: number
   attemptsLeft?: number // wrong guesses still allowed in this question (only when the answer was not valid)
+  suggestion?: string // a wrong answer one typo away from a listed answer: the label it was probably meant to be
 }
 
 export type Ack<T> = { ok: true; data: T } | { ok: false; error: string }

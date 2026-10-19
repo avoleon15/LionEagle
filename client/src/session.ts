@@ -40,7 +40,8 @@ export const loadProfile = (): Profile => {
   if (!saved) return { nick: '', avatar: randomAvatar() }
   const fresh = randomAvatar()
   const pick = (key: keyof Avatar) => (Number.isFinite(saved.avatar?.[key]) ? saved.avatar[key] : fresh[key])
-  return { nick: String(saved.nick ?? ''), avatar: { color: pick('color'), face: pick('face'), hat: pick('hat') % AVATAR_OPTIONS.hat } }
+  const wrap = (key: keyof Avatar) => ((Math.floor(pick(key)) % AVATAR_OPTIONS[key]) + AVATAR_OPTIONS[key]) % AVATAR_OPTIONS[key]
+  return { nick: String(saved.nick ?? ''), avatar: { color: wrap('color'), face: wrap('face'), hat: wrap('hat') } }
 }
 export const saveProfile = (p: Profile) => write(KEY, p)
 export const loadSession = () => read<Session>(SESSION_KEY)

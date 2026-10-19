@@ -1,6 +1,6 @@
-import { MAX_ANSWER_LENGTH, MAX_ATTEMPTS, QUESTIONS_PER_GAME, type AnswerResult, type GameStage, type GameView, type Reveal } from '../../shared/protocol'
+import { MAX_ANSWER_LENGTH, MAX_ATTEMPTS, QUESTIONS_PER_GAME, type AnswerResult, type GameStage, type GameView, type Reveal, type RoundRecord } from '../../shared/protocol'
 import { REVEAL_MS, ROUND_MS } from './config'
-import { buildIndex, match, type Index, type Question } from './matching'
+import { buildIndex, match, suggest, type Index, type Question } from './matching'
 import { logAnswer, recordRound } from './stats'
 
 export class GameError extends Error {}
@@ -28,16 +28,21 @@ export class Game {
   private wrong = new Map<string, number>() // wrong guesses per player in the current round
   private scores = new Map<string, number>()
   private reveal: Reveal | null = null
+  private history: RoundRecord[] = []
   private timer: NodeJS.Timeout | null = null
   private readonly questions: Question[]
+  private readonly indexes: Index[]
   private index: Index
 
+  /** Throws (before anything starts) if a question cannot be played. The caller announces the new game. */
   constructor(private hooks: GameHooks, questions: Question[]) {
     if (questions.length < QUESTIONS_PER_GAME) throw new GameError('No hay suficientes preguntas.')
     this.questions = questions
-    this.index = buildIndex(this.questions[0])
+    // Built up front: a list that became inconsistent fails here, not in the middle of the game.
+    this.indexes = questions.map((q) => buildIndex(q))
+    this.index = this.indexes[0]
     for (const id of hooks.members()) this.scores.set(id, 0)
-    this.startRound()
+    this.startRound(false)
   }
 
   private get question() {
@@ -67,23 +72,22 @@ export class Game {
     }
   }
 
-  private startRound() {
+  private startRound(notify = true) {
     this.stage = 'answering'
     this.locks.clear()
     this.wrong.clear()
     this.reveal = null
-    this.index = buildIndex(this.question)
+    this.index = this.indexes[this.round]
     this.schedule(ROUND_MS, () => this.finishRound())
-    this.changed()
+    if (notify) this.changed()
   }
 
   private finishRound() {
     if (this.stage !== 'answering') return
+    // The points were already added when each answer locked in (see submit).
     const results = this.hooks.members().map((playerId) => {
       const lock = this.locks.get(playerId)
-      const points = lock?.points ?? 0
-      this.scores.set(playerId, (this.scores.get(playerId) ?? 0) + points)
-      return { playerId, answer: lock?.label ?? null, points }
+      return { playerId, answer: lock?.label ?? null, points: lock?.points ?? 0 }
     })
     const top = [...this.question.answers]
       .sort((a, b) => b.points - a.points)
@@ -92,6 +96,7 @@ export class Game {
     // Somebody who dropped out before answering never really saw the question: do not count them as asked.
     const present = new Set(this.hooks.active())
     recordRound(this.question.id, results.filter((r) => r.answer !== null || present.has(r.playerId)).length, results.filter((r) => r.answer !== null).length)
+    this.history.push({ prompt: this.question.prompt, category: this.question.category, results })
     this.reveal = { results, top }
     this.stage = 'reveal'
     this.schedule(REVEAL_MS, () => this.next())
@@ -133,9 +138,13 @@ export class Game {
         this.changed() // others see that this player is out of tries
         this.checkEarlyEnd()
       }
-      return { valid: false, attemptsLeft: MAX_ATTEMPTS - used }
+      const suggestion = suggest(this.index, typed)
+      return { valid: false, attemptsLeft: MAX_ATTEMPTS - used, ...(suggestion ? { suggestion } : {}) }
     }
     this.locks.set(playerId, hit)
+    // Scores are live: the player sees their character climb right after answering, and the others see the
+    // scoreboard move (they still only learn the answers at the reveal).
+    this.scores.set(playerId, (this.scores.get(playerId) ?? 0) + hit.points)
     this.changed()
     this.checkEarlyEnd()
     return { valid: true, label: hit.label, points: hit.points }
@@ -181,6 +190,7 @@ export class Game {
       answered: [...this.locks.keys()].filter((id) => members.has(id)),
       exhausted: [...this.wrong].filter(([id, n]) => n >= MAX_ATTEMPTS && !this.locks.has(id) && members.has(id)).map(([id]) => id),
       reveal: this.reveal,
+      history: this.stage === 'final' ? this.history.map((r) => ({ ...r, results: r.results.filter((x) => members.has(x.playerId)) })) : null,
     }
   }
 }

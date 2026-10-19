@@ -36,6 +36,7 @@ interface Room {
   selected: string[] | null // categories for the next game; null = all of them
   played: Set<string> // question ids this room has already seen
   handoverTimer: NodeJS.Timeout | null // set while the host is disconnected
+  gameNo: number // increases with every game, so clients can tell a new game from the previous one
 }
 
 const rooms = new Map<string, Room>()
@@ -105,6 +106,7 @@ export function view(room: Room): RoomState {
     categories,
     selected,
     code: room.code,
+    gameNo: room.gameNo,
     hostId: room.hostId,
     phase: room.phase,
     game: room.game ? room.game.view() : null,
@@ -131,7 +133,7 @@ export function join(
   const avatar = clampAvatar(p.avatar)
 
   if (!p.code) {
-    const room: Room = { code: newCode(), hostId: '', phase: 'lobby', players: new Map(), game: null, selected: null, played: new Set(), handoverTimer: null }
+    const room: Room = { code: newCode(), hostId: '', phase: 'lobby', players: new Map(), game: null, selected: null, played: new Set(), handoverTimer: null, gameNo: 0 }
     const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null }
     room.hostId = player.id
     room.players.set(player.id, player)
@@ -155,6 +157,9 @@ export function join(
       clearTimeout(room.handoverTimer)
       room.handoverTimer = null
     }
+    // The host is still away and nobody was connected to take over when they left: try again now.
+    const host = room.players.get(room.hostId)
+    if (host && host.socketId === null && !room.handoverTimer) scheduleHandover(room)
     return { room, player: existing }
   }
 
@@ -184,6 +189,7 @@ function removePlayer(room: Room, playerId: string): void {
     room.hostId = next.id
     if (room.handoverTimer) clearTimeout(room.handoverTimer)
     room.handoverTimer = null
+    if (next.socketId === null) scheduleHandover(room) // only disconnected players are left for now
   }
 }
 
@@ -222,8 +228,13 @@ export function disconnect(socketId: string, onExpire: (room: Room) => void): Ro
   room.game?.checkEarlyEnd()
   if (room.hostId === player.id) scheduleHandover(room)
   player.dropTimer = setTimeout(() => {
-    removePlayer(room, player.id)
-    if (rooms.has(room.code)) onExpire(room)
+    // Like every timer: an exception here would be uncaught and take every room down.
+    try {
+      removePlayer(room, player.id)
+      if (rooms.has(room.code)) onExpire(room)
+    } catch (e) {
+      console.error('seat expiry:', e)
+    }
   }, GRACE_MS)
   return room
 }
@@ -249,10 +260,8 @@ export function start(socketId: string): Room {
     throw new RoomError(`Con esas categorías solo hay ${pool.length} preguntas y se necesitan ${QUESTIONS_PER_GAME}. Elige más categorías.`)
   }
   const picked = selectQuestions(pool, QUESTIONS_PER_GAME, room.played)
-  if (picked.some((q) => room.played.has(q.id))) room.played.clear() // the room has seen everything: start over
-  picked.forEach((q) => room.played.add(q.id))
-  room.phase = 'playing'
-  room.game = new Game(
+  // Create the game first: if it cannot start, the room is still a normal lobby.
+  const game = new Game(
     {
       members: () => [...room.players.keys()],
       active: () => [...room.players.values()].filter((p) => p.socketId !== null).map((p) => p.id),
@@ -260,6 +269,11 @@ export function start(socketId: string): Room {
     },
     picked,
   )
+  if (picked.some((q) => room.played.has(q.id))) room.played.clear() // the room has seen everything: start over
+  picked.forEach((q) => room.played.add(q.id))
+  room.gameNo++
+  room.phase = 'playing'
+  room.game = game
   return room
 }
 
