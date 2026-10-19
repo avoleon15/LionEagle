@@ -207,8 +207,8 @@ export function buildWorld(W: number, H: number, found: GamePicture | null): Wor
     }
     p.g.drawImage(strip.canvas, x0, 0)
     // The grass line of the bottom picture is 261 px (of 1536) above its lower edge; a piece is 2:3.
-    // Portrait pieces are 2:3 with the grass line 261/1536 above the lower edge; landscape ones are 3:2 with it 18% up.
-    const footLow = found.wide ? h - Math.round(PW * (2 / 3) * 0.18) : h - Math.round(PW * 1.5 * (261 / 1536))
+    // Portrait pieces are 2:3 with the grass line 261/1536 above the lower edge; landscape ones are 3:2 with it about 12.9% up (feet 11.5%).
+    const footLow = found.wide ? h - Math.round(PW * (2 / 3) * 0.115) : h - Math.round(PW * 1.5 * (261 / 1536))
     marks(p, footLow, FOOT_HIGH, x0)
     return { canvas: p.canvas, footLow, footHigh: FOOT_HIGH, picture: true }
   }

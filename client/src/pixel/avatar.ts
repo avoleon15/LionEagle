@@ -9,17 +9,19 @@ export const COLORS = [
   '#e63946', '#f4a261', '#f2c14e', '#6bbf59', '#2a9d8f', '#4cc9f0',
   '#4361ee', '#7b2cbf', '#f15bb5', '#8d5a3b', '#adb5bd', '#f8f9fa',
 ]
-// Hair is part of the hat: a few of these are only hair, others are a hat with hair coming out of it.
-export const HAT_NAMES = [
-  'Sin gorro', 'Gorra', 'Copa', 'Corona', 'Boina', 'Vikingo', 'Cinta', 'Sombrero',
-  'Gorra con melena', 'Mohicano', 'Afro', 'Coletas', 'Gorro de lana', 'Mago', 'Pirata', 'Melena rubia', 'Puntas', 'Moño',
-  'Ciclista holandés', 'Aureola', 'Cuernos', 'Hacha', 'Flecha', 'Papel aluminio', 'Cono', 'Calzones', 'Fiesta', 'Venda',
+// The hats on offer, in order; the number is the case of drawHat that draws it (the other cases were removed
+// from the game and their drawing stays unused).
+const HATS: [kind: number, name: string][] = [
+  [0, 'Sin gorro'], [3, 'Corona'], [5, 'Vikingo'], [9, 'Mohicano'], [13, 'Mago'], [22, 'Flecha'], [23, 'Papel aluminio'], [24, 'Cono'], [28, 'Sombrero charro'], [29, 'Ushanka'], [30, 'Bandana de sushi'],
 ]
+export const HAT_NAMES = HATS.map((h) => h[1])
 export const hatName = (i: number) => HAT_NAMES[i] ?? ''
-export const FACE_NAMES = [
-  'Puntitos', 'Feliz', 'Sorpresa', 'Guiño', 'Dormido', 'Lentes oscuros', 'Bigotito', 'Muerto',
-  'Ojo morado', 'Calavera', 'Mareado', 'Bigotón', 'Vampiro', 'Llorando',
+// The faces on offer, in order. Each is drawn by the matching case of drawFace (cases that are not listed
+// here were removed from the game, their drawing stays unused).
+const FACES: [kind: number, name: string][] = [
+  [0, 'Puntitos'], [1, 'Feliz'], [2, 'Sorpresa'], [3, 'Guiño'], [7, 'Muerto'], [8, 'Ojo morado'], [9, 'Calavera'], [13, 'Llorando'], [14, 'Bizco'], [15, 'Vomitando'], [16, 'Dinero'], [18, 'Lentes de sol'],
 ]
+export const FACE_NAMES = FACES.map((f) => f[1])
 export const faceName = (i: number) => FACE_NAMES[i] ?? ''
 
 const INK = '#1b1426'
@@ -115,6 +117,39 @@ function drawFace(p: Painter, kind: number) {
       p.rect(8, 12, 2, 3, '#c1121f'); p.px(8, 12, '#fff'); p.rect(14, 12, 2, 3, '#c1121f'); p.px(14, 12, '#fff')
       p.rect(7, 10, 3, 1, INK); p.rect(14, 10, 3, 1, INK)
       p.rect(9, 18, 6, 1, INK); p.px(10, 19, '#fff'); p.px(13, 19, '#fff')
+      break
+    case 14: // goofy: big open smile, the pupils sit at the outer edge of each eye, halfway up
+      p.rect(6, 10, 5, 5, '#fff'); p.rect(6, 11, 2, 3, INK)
+      p.rect(13, 10, 5, 5, '#fff'); p.rect(16, 11, 2, 3, INK)
+      p.rect(9, 17, 6, 1, INK); p.rect(9, 18, 6, 3, INK); p.rect(10, 21, 4, 1, INK)
+      p.rect(11, 20, 2, 1, '#ff7aa8')
+      break
+    case 15: { // green vomit, dead X eyes
+      for (const x of [7, 14]) { p.px(x, 11, INK); p.px(x + 2, 11, INK); p.px(x + 1, 12, INK); p.px(x, 13, INK); p.px(x + 2, 13, INK) }
+      p.rect(10, 17, 4, 3, INK)
+      p.rect(10, 19, 4, 8, '#6be04f'); p.rect(10, 19, 1, 8, '#9be870'); p.rect(13, 19, 1, 8, '#3fa832')
+      p.rect(8, 27, 8, 2, '#6be04f'); p.rect(8, 27, 8, 1, '#9be870'); p.rect(13, 28, 3, 1, '#3fa832'); p.px(9, 25, '#6be04f'); p.px(15, 24, '#6be04f')
+      break
+    }
+    case 16: { // dollar-sign eyes and a gold smile
+      for (const x of [6, 13]) {
+        p.rect(x, 9, 5, 7, INK)
+        const g = '#5cff7a'
+        p.rect(x + 1, 10, 3, 1, g); p.px(x + 1, 11, g); p.rect(x + 1, 12, 3, 1, g); p.px(x + 3, 13, g); p.rect(x + 1, 14, 3, 1, g); p.px(x + 2, 9, g); p.px(x + 2, 15, g)
+      }
+      p.rect(8, 17, 8, 4, INK); p.rect(9, 18, 6, 2, '#ffd23f'); p.rect(9, 18, 6, 1, '#fff2a8'); for (const x of [11, 13]) p.rect(x, 18, 1, 2, '#c8932a')
+      break
+    }
+    case 17: // big nose
+      dotEye(p, 6, 10, 3); dotEye(p, 16, 10, 3)
+      p.rect(9, 12, 6, 8, INK); p.rect(10, 13, 4, 6, '#ff8a65'); p.rect(10, 13, 2, 2, '#ffc4b0'); p.rect(13, 16, 1, 3, '#d9603f')
+      p.px(10, 18, INK); p.px(13, 18, INK)
+      p.rect(10, 22, 4, 1, INK); p.px(9, 21, INK); p.px(14, 21, INK)
+      break
+    case 18: // dark sunglasses and a smirk
+      p.rect(5, 11, 6, 4, INK); p.rect(13, 11, 6, 4, INK); p.rect(11, 11, 2, 1, INK)
+      p.rect(6, 12, 2, 1, '#5b6fa8'); p.px(6, 13, '#5b6fa8'); p.rect(14, 12, 2, 1, '#5b6fa8'); p.px(14, 13, '#5b6fa8')
+      p.rect(10, 18, 3, 1, INK); p.px(13, 17, INK); p.px(9, 19, INK)
       break
     default: // crying
       dotEye(p, 8, 12); dotEye(p, 14, 12)
@@ -257,6 +292,30 @@ function drawHat(p: Painter, kind: number) {
       p.rect(3, 4, 14, 3, '#f1ede4'); p.rect(3, 5, 14, 1, '#d8d2c4'); p.rect(12, 4, 2, 2, '#d62828'); p.px(13, 6, '#a4161a')
       p.rect(16, 6, 2, 1, '#f1ede4'); p.px(18, 7, '#f1ede4')
       break
+    case 28: { // sombrero charro: tall crown, very wide brim with curled-up edges, red band with gold
+      const straw = '#d9a35f', light = '#f0c88a', dark = '#a8743a', red = '#c1121f', gold = '#ffd23f'
+      p.rect(7, 0, 6, 1, straw); p.rect(6, 1, 8, 3, straw); p.rect(7, 1, 2, 2, light)
+      p.rect(6, 3, 8, 1, red); for (const x of [7, 9, 11, 13]) p.px(x, 3, gold)
+      p.rect(0, 4, 20, 2, straw); p.rect(0, 3, 2, 1, straw); p.rect(18, 3, 2, 1, straw)
+      p.rect(1, 4, 6, 1, light); p.rect(0, 5, 20, 1, dark)
+      for (let x = 1; x < 20; x += 3) p.px(x, 5, gold)
+      break
+    }
+    case 29: { // ushanka: fur hat with ear flaps hanging down
+      const fur = '#8a6a4a', light = '#b08d66', dark = '#55402c'
+      p.rect(5, 1, 10, 1, fur); p.rect(4, 2, 12, 3, fur); p.rect(3, 5, 14, 2, light)
+      p.rect(6, 2, 4, 1, light)
+      p.rect(2, 5, 3, 8, fur); p.rect(15, 5, 3, 8, fur); p.rect(2, 11, 3, 2, dark); p.rect(15, 11, 3, 2, dark); p.rect(2, 5, 1, 6, light)
+      for (const [x, y] of [[5, 3], [8, 4], [11, 3], [13, 4], [3, 8], [16, 9], [4, 6], [14, 6]]) p.px(x, y, dark)
+      p.rect(9, 0, 2, 1, dark); p.rect(9, 3, 2, 2, '#ffd23f'); p.px(9, 3, '#fff2a8')
+      break
+    }
+    case 30: { // sushi chef headband (hachimaki): wraps the forehead, big red sun, knot with two tails at the side
+      p.rect(3, 6, 14, 3, '#f8f9fa'); p.rect(3, 8, 14, 1, '#d8dde2')
+      p.rect(8, 6, 4, 3, '#d62828')
+      p.rect(16, 6, 3, 3, '#f8f9fa'); p.rect(18, 9, 2, 4, '#f8f9fa'); p.rect(17, 9, 1, 3, '#d8dde2'); p.rect(19, 11, 1, 2, '#d8dde2')
+      break
+    }
   }
 }
 
@@ -275,11 +334,11 @@ export function avatarSprite(a: Avatar): HTMLCanvasElement {
   const body = COLORS[a.color % COLORS.length]
 
   drawBody(p, body)
-  drawFace(p, a.face % FACE_NAMES.length)
+  drawFace(p, FACES[a.face % FACES.length][0])
   // The hats were drawn for the first, wider body: move them onto the pill's head.
   p.g.save()
   p.g.translate(2, 1)
-  drawHat(p, a.hat % HAT_NAMES.length)
+  drawHat(p, HATS[a.hat % HATS.length][0])
   p.g.restore()
 
   p.outline(shade(body, -0.72))
