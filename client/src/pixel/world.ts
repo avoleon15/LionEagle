@@ -1,4 +1,3 @@
-import { drawText } from './font'
 import { eagleSprite, lionSprite, rockSprite } from './mascots'
 import { Painter } from './paint'
 
@@ -209,7 +208,6 @@ export function buildWorld(W: number, H: number, found: GamePicture | null): Wor
     // The grass line of the bottom picture is 261 px (of 1536) above its lower edge; a piece is 2:3.
     // Portrait pieces are 2:3 with the grass line 261/1536 above the lower edge; landscape ones are 3:2 with it about 12.9% up (feet 11.5%).
     const footLow = found.wide ? h - Math.round(PW * (2 / 3) * 0.115) : h - Math.round(PW * 1.5 * (261 / 1536))
-    marks(p, footLow, FOOT_HIGH, x0)
     return { canvas: p.canvas, footLow, footHigh: FOOT_HIGH, picture: true }
   }
   const h = Math.max(H * 3, 720)
@@ -232,17 +230,7 @@ export function buildWorld(W: number, H: number, found: GamePicture | null): Wor
   grass(p, W, groundTop, GROUND)
   mascots(p, W, groundTop)
   const footLow = groundTop + 10
-  marks(p, footLow, FOOT_HIGH)
   return { canvas: p.canvas, footLow, footHigh: FOOT_HIGH, picture: false }
-}
-
-/** Altitude ticks on the left edge: every 100 points is 1000 m. */
-function marks(p: Painter, footLow: number, footHigh: number, x0 = 0) {
-  for (let pts = 100; pts <= MAX_SCORE; pts += 100) {
-    const y = Math.round(footLow - (pts / MAX_SCORE) * (footLow - footHigh))
-    for (let x = x0 + 2; x < x0 + 14; x += 3) p.rect(x, y, 2, 1, 'rgba(255,255,255,0.75)')
-    drawText(p.g, `${pts * 10} M`, x0 + 3, y - 7, '#ffffff', '#17235f')
-  }
 }
 
 /** Stars in the dark top part of the world, twinkling (drawn every frame). */

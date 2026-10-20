@@ -132,6 +132,7 @@ const av = { color: 1, face: 2, hat: 4 }
   const q = SAMPLE_QUESTIONS.find((x) => x.prompt === st.game.prompt)!
   const invalid = await emit(A, 'game:answer', 'una respuesta inventada')
   check(invalid.ok && invalid.data.valid === false, 'an unlisted answer is rejected')
+  await sleep(300)
   const valid = await emit(A, 'game:answer', q.answers[0].label)
   check(valid.ok && valid.data.valid === true, 'a listed answer is accepted')
   check((await emit(A, 'game:answer', q.answers[1].label)).ok === false, 'a second answer in the same round is refused')
@@ -143,7 +144,7 @@ const av = { color: 1, face: 2, hat: 4 }
   B.close()
 }
 
-// ---- 4. a player cannot try answers forever ----
+// ---- 4. wrong answers can be retried, but not faster than a person types ----
 {
   const A = await connect()
   const B = await connect()
@@ -155,15 +156,20 @@ const av = { color: 1, face: 2, hat: 4 }
   await sleep(200)
   const q = SAMPLE_QUESTIONS.find((x) => x.prompt === st.game.prompt)!
   let last: any
-  for (let i = 0; i < 6; i++) last = await emit(A, 'game:answer', 'invento ' + i)
-  check(last.ok && last.data.valid === false && last.data.attemptsLeft === 0, 'the 6th wrong answer reports no tries left')
-  const seventh = await emit(A, 'game:answer', q.answers[0].label)
-  check(seventh.ok === false && /intentos/.test(seventh.error), 'after that even a correct answer is refused')
-  await sleep(200)
-  check(st.game.exhausted.length === 1 && st.game.stage === 'answering', 'everybody sees who is out of tries and the round keeps going')
+  for (let i = 0; i < 5; i++) {
+    last = await emit(A, 'game:answer', 'invento ' + i)
+    await sleep(300)
+  }
+  check(last.ok && last.data.valid === false, 'five wrong answers in a row are all just "not valid"')
+  await emit(A, 'game:answer', 'otro invento')
+  const fast = await emit(A, 'game:answer', q.answers[0].label)
+  check(fast.ok === false && /despacio/.test(fast.error), 'an immediate retry is refused')
+  await sleep(300)
+  const right = await emit(A, 'game:answer', q.answers[0].label)
+  check(right.ok && right.data.valid === true, 'a right answer after those wrong ones still counts')
   await emit(B, 'game:answer', q.answers[0].label)
   await sleep(300)
-  check(st.game.stage === 'reveal', 'the round ends early once the other player answers')
+  check(st.game.stage === 'reveal', 'the round ends early once everybody has answered')
   A.close()
   B.close()
 }

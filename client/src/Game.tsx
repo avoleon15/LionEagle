@@ -5,6 +5,8 @@ import { Avatar } from './Avatar'
 import { RESULT_MS, climbValue, climbing, useClimb, useNow, type Climb } from './climb'
 import { Scene } from './Scene'
 import { socket } from './socket'
+import { sfx } from './sound'
+import { SoundToggle } from './SoundToggle'
 
 interface Props {
   room: RoomState
@@ -30,10 +32,10 @@ interface Result {
 }
 
 /** Right after answering: only how many points it was worth. */
-function ResultCard({ points, out }: { points: number; out: boolean }) {
+function ResultCard({ points }: { points: number }) {
   return (
     <section className={`box result ${tierClass(points)}`} role="status">
-      <p className="tierline">{out ? 'Sin intentos' : tierLabel(points)}</p>
+      <p className="tierline">{tierLabel(points)}</p>
       <p className="points">+{points}</p>
     </section>
   )
@@ -57,13 +59,10 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
   const [shake, setShake] = useState(0)
   const [sending, setSending] = useState(false)
   const [locked, setLocked] = useState(false)
-  const [examples, setExamples] = useState<string[] | null>(null)
-  const [hintBusy, setHintBusy] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const roundRef = useRef(game.round)
   roundRef.current = game.round
   const lockedByServer = game.answered.includes(me)
-  const outOfTries = game.exhausted.includes(me) && !locked
 
   // New round: clear the previous answer.
   useEffect(() => {
@@ -72,22 +71,8 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
     setHint(null)
     setLocked(false)
     setSending(false)
-    setExamples(null)
     inputRef.current?.focus()
   }, [game.round])
-
-  const askHint = () => {
-    if (hintBusy || examples) return
-    setHintBusy(true)
-    const round = game.round
-    socket.timeout(8000).emit('game:hint', (err, res) => {
-      setHintBusy(false)
-      if (round !== roundRef.current) return
-      if (err) return setMsg('No llegó la pista. Intenta de nuevo.')
-      if (!res.ok) return setMsg(res.error)
-      setExamples(res.data.examples)
-    })
-  }
 
   const useHint = () => {
     if (!hint) return
@@ -100,7 +85,7 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
   const submit = (e?: FormEvent) => {
     e?.preventDefault()
     const value = text.trim()
-    if (!value || sending || !connected || locked || lockedByServer || outOfTries) return
+    if (!value || sending || !connected || locked || lockedByServer) return
     // Enter on a wrong answer that has a suggestion takes the suggestion first.
     if (hint && value === hint.typed) return useHint()
     setSending(true)
@@ -112,14 +97,14 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
       if (!res.ok) return setMsg(res.error)
       if (res.data.valid) {
         setLocked(true)
+        sfx.correct(res.data.points!)
         onResult({ round, points: res.data.points!, at: performance.now() })
         setMsg('')
         setHint(null)
       } else {
-        const left = res.data.attemptsLeft ?? 0
-        if (left <= 0) onResult({ round, points: 0, at: performance.now() })
+        sfx.wrong()
         setHint(res.data.suggestion ? { typed: value, label: res.data.suggestion } : null)
-        setMsg(left > 0 ? `${res.data.suggestion ? '' : 'Esa no está en la lista. '}Te ${left === 1 ? 'queda 1 intento' : `quedan ${left} intentos`}.` : '')
+        setMsg(res.data.suggestion ? '' : 'Esa no está en la lista.')
         setShake((n) => n + 1)
         if (!res.data.suggestion) inputRef.current?.select()
       }
@@ -133,7 +118,15 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
     }
   }
 
-  if (locked || lockedByServer || outOfTries) return climbing(climb, now) ? null : <Waiting secs={secs} />
+  // Quick beeps in the last 5 seconds, a longer one at the end.
+  const whole = Math.ceil(secs)
+  const lastBeep = useRef(99)
+  useEffect(() => {
+    if (!locked && !lockedByServer && whole <= 5 && whole >= 1 && whole !== lastBeep.current) sfx.tick(false)
+    lastBeep.current = whole
+  }, [whole, locked, lockedByServer])
+
+  if (locked || lockedByServer) return climbing(climb, now) ? null : <Waiting secs={secs} />
 
   const share = Math.min(1, secs / total)
   const cells = 20
@@ -144,9 +137,9 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
         <span className="round">
           Pregunta {game.round + 1}/{game.total}
         </span>
-        <span className="qcat">{game.category}</span>
       </header>
       <h2 className="prompt">{game.prompt}</h2>
+      {game.hint && <p className="clue">{game.hint}</p>}
       <div className={'clock' + (secs <= 5 ? ' low' : '')} aria-label={`${Math.ceil(secs)} segundos`}>
         <b>{Math.ceil(secs)}</b>
         <span className="cells">
@@ -177,25 +170,12 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
           Enviar
         </button>
       </form>
-      {examples ? (
-        <p className="examples">
-          <span>Pista · ejemplos de respuestas válidas</span>
-          {examples.map((e) => (
-            <b key={e}>{e}</b>
-          ))}
-          <small>Hay muchas más. Solo son para que entiendas qué se pide.</small>
-        </p>
-      ) : (
-        <button type="button" className="hintbtn" onClick={askHint} disabled={hintBusy || !connected}>
-          Pista
-        </button>
-      )}
       {hint && (
         <button type="button" className="didyou" onClick={useHint}>
           ¿Quisiste poner <b>{hint.label}</b>? <small>Enter o Tab para usarla</small>
         </button>
       )}
-      {msg ? <p className="error">{msg}</p> : !hint && <p className="hint">▲ Mientras más rara, más alto subes ▲</p>}
+      {msg && <p className="error">{msg}</p>}
     </section>
   )
 }
@@ -225,28 +205,22 @@ function Table({ players, scores, me, gained }: { players: PlayerView[]; scores:
 }
 
 function Reveal({ room, game, me }: { room: RoomState; game: GameView; me: string }) {
-  const secs = useSecondsLeft(game)
   const reveal = game.reveal!
   const gained: Record<string, number> = {}
   for (const r of reveal.results) gained[r.playerId] = r.points
   const mine = gained[me] ?? 0
-  const last = game.round + 1 >= game.total
   return (
     <section className="box reveal">
       <header className="qhead">
         <span className="round">
           Pregunta {game.round + 1}/{game.total}
         </span>
-        <span className="qcat">{game.category}</span>
       </header>
       <div className={`mine ${tierClass(mine)}`}>
         <span>{mine > 0 ? tierLabel(mine) : 'Sin puntos esta vez'}</span>
         <b>+{mine}</b>
       </div>
       <Table players={room.players} scores={game.scores} me={me} gained={gained} />
-      <p className="next">
-        {last ? 'Resultado final en' : 'Siguiente pregunta en'} {Math.ceil(secs)}
-      </p>
     </section>
   )
 }
@@ -257,6 +231,9 @@ function Final({ room, game, me, onLeave }: Props) {
   const isHost = room.hostId === me
   const ranked = [...room.players].sort((a, b) => (game.scores[b.id] ?? 0) - (game.scores[a.id] ?? 0))
   const myPlace = ranked.findIndex((p) => (game.scores[p.id] ?? 0) === (game.scores[me] ?? 0)) + 1
+  useEffect(() => {
+    sfx.finish(myPlace === 1)
+  }, [])
   return (
     <section className="box final">
       <p className="kicker">Resultado final</p>
@@ -290,7 +267,7 @@ function Final({ room, game, me, onLeave }: Props) {
           Volver a la sala
         </button>
       ) : (
-        <p className="hint">Esperando al anfitrión…</p>
+        <p className="hint">Esperando al host…</p>
       )}
       <button className="link" onClick={onLeave}>
         Salir de la sala
@@ -338,6 +315,27 @@ export function Game(props: Props) {
   const [result, setResult] = useState<Result | null>(null)
   const fresh = result && result.round === game.round && game.stage !== 'final' && now - result.at < RESULT_MS ? result : null
 
+  // Sounds that follow the game: start, the climb, other players answering, the take-off.
+  useEffect(() => {
+    sfx.start()
+  }, [])
+  useEffect(() => {
+    if (climb.to <= climb.from) return
+    const id = setTimeout(() => sfx.climb(climb.dur / 1000), Math.max(0, climb.start - performance.now()))
+    return () => clearTimeout(id)
+  }, [climb])
+  const othersAnswered = game.answered.filter((id) => id !== me).length
+  const seenOthers = useRef(0)
+  useEffect(() => {
+    if (game.stage === 'answering' && othersAnswered > seenOthers.current) sfx.pop()
+    seenOthers.current = game.stage === 'answering' ? othersAnswered : 0
+  }, [othersAnswered, game.stage])
+  useEffect(() => {
+    if (game.stage !== 'final') return
+    const id = setTimeout(() => sfx.launch(), 900)
+    return () => clearTimeout(id)
+  }, [game.stage])
+
   const boxShown = fresh !== null || (game.stage === 'final' ? showFinal : !rising)
   const focus = game.stage === 'final' ? 0.55 : boxShown ? 0.9 : 0.68
 
@@ -352,6 +350,7 @@ export function Game(props: Props) {
               {game.round + 1}/{game.total}
             </span>
           )}
+          <SoundToggle />
           <button
             className="exit"
             aria-label="Salir de la sala"
@@ -364,7 +363,7 @@ export function Game(props: Props) {
         </div>
       </div>
       <div className="stage">
-        {fresh && <ResultCard points={fresh.points} out={fresh.points === 0} />}
+        {fresh && <ResultCard points={fresh.points} />}
         {game.stage === 'answering' && !fresh && <Question game={game} me={me} connected={connected} now={now} climb={climb} onResult={setResult} />}
         {game.stage === 'reveal' && game.reveal && !fresh && !rising && <Reveal room={room} game={game} me={me} />}
         {showFinal && <Final {...props} />}

@@ -24,16 +24,14 @@ export type Phase = 'lobby' | 'playing'
 export const QUESTIONS_PER_GAME = 7
 export const TIERS = [10, 30, 60, 80, 100] as const
 export const MAX_ANSWER_LENGTH = 60
-/** Wrong guesses allowed per player per question. Without a cap a script could try every rare answer until one hits. */
-export const MAX_ATTEMPTS = 6
 
 const TIER_LABELS: Record<number, string> = {
   0: 'Sin puntos',
-  10: 'Común',
-  30: 'Poco común',
-  60: 'Raro',
-  80: 'Muy raro',
-  100: 'Una en un millón',
+  10: 'Polluelo',
+  30: 'Gorrión',
+  60: 'Halcón',
+  80: 'Águila',
+  100: 'Rey León',
 }
 export const tierLabel = (points: number) => TIER_LABELS[points] ?? ''
 
@@ -56,12 +54,12 @@ export interface GameView {
   total: number
   category: string
   prompt: string
+  hint: string // a short clue about what kind of answer is wanted (may be empty)
   endsAt: number // server clock, ms; 0 when there is no countdown
   durationMs: number // full length of the current countdown
   serverNow: number // server clock when this state was built, to correct clock skew
   scores: Record<string, number>
   answered: string[] // players who already locked in this round (never the answers)
-  exhausted: string[] // players who used up their wrong guesses this round
   reveal: Reveal | null
   history: RoundRecord[] | null // only in the final stage: what everybody answered in every round
 }
@@ -112,7 +110,6 @@ export interface AnswerResult {
   valid: boolean
   label?: string
   points?: number
-  attemptsLeft?: number // wrong guesses still allowed in this question (only when the answer was not valid)
   suggestion?: string // a wrong answer one typo away from a listed answer: the label it was probably meant to be
 }
 
@@ -124,7 +121,6 @@ export interface ClientToServer {
   'game:start': (ack: (r: Ack<null>) => void) => void
   'room:categories': (names: string[], ack: (r: Ack<null>) => void) => void
   'game:answer': (text: string, ack: (r: Ack<AnswerResult>) => void) => void
-  'game:hint': (ack: (r: Ack<{ examples: string[] }>) => void) => void
   'game:reset': (ack: (r: Ack<null>) => void) => void
 }
 

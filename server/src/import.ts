@@ -15,8 +15,10 @@ if (files.length === 0) {
 }
 
 db.init()
+// Hint files (content/pistas*.ts) are a map from question id to its hint text; they are applied after the questions.
+const hintFiles = files.filter((f) => /pistas[^/]*\.ts$/.test(f))
 let failed = false
-for (const file of files) {
+for (const file of files.filter((f) => !hintFiles.includes(f))) {
   const path = resolve(file)
   const data = path.endsWith('.json') ? JSON.parse(readFileSync(path, 'utf8')) : (await import(pathToFileURL(path).href)).default
   let list: { id?: string }[] = Array.isArray(data) ? data : data.questions
@@ -34,5 +36,14 @@ for (const file of files) {
     failed = true
     console.log(`  error en la pregunta ${e.index + 1}: ${e.error}`)
   }
+}
+for (const file of hintFiles) {
+  const map = (await import(pathToFileURL(resolve(file)).href)).default as Record<string, string>
+  let n = 0
+  for (const [id, hint] of Object.entries(map)) {
+    if (db.setHint(id, hint)) n++
+    else console.log(`  pista sin pregunta: ${id}`)
+  }
+  console.log(`${file}: ${n} pistas puestas.`)
 }
 process.exit(failed ? 1 : 0)

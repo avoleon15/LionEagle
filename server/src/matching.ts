@@ -10,6 +10,7 @@ export interface Question {
   id: string
   category: string
   prompt: string
+  hint?: string
   answers: AnswerDef[]
 }
 

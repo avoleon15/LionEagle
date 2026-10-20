@@ -5,7 +5,8 @@ import type { CategoryInfo } from '../../shared/protocol'
 const GROUPS: { name: string; members: string[] }[] = [
   { name: 'Videojuegos', members: ['Videojuegos', 'Minecraft', 'Pokémon'] },
   { name: 'Deportes', members: ['Deportes', 'Fútbol'] },
-  { name: 'Cine, series y música', members: ['Cine y series', 'Música'] },
+  { name: 'Cine, series y música', members: ['Cine y series', 'Música', 'Cultura pop'] },
+  { name: 'Cotidiano y palabras', members: ['Cotidiano', 'Palabras', 'Marcas y apps'] },
   { name: 'Ciencia y mundo', members: ['Ciencia', 'Naturaleza', 'Geografía', 'Historia', 'Cultura general'] },
   { name: 'Comida y bebida', members: ['Comida y bebida'] },
   { name: 'Guatemala', members: ['Guatemala'] },

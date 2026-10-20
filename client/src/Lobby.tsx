@@ -16,6 +16,7 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
   const [error, setError] = useState('')
   const [suggesting, setSuggesting] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [open, setOpen] = useState(false)
   const isHost = room.hostId === me
   const link = `${window.location.origin}/${room.code}`
 
@@ -41,6 +42,9 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
   }
   const groups = groupCategories(room.categories)
   // A group is on when all its categories are, "some" when only a few are. Tapping turns the whole group on, or off when it was all on.
+  const allOn = room.selected.length === room.categories.length
+  const picked = groups.filter((g) => g.categories.every((c) => chosen.has(c.name)))
+  const summary = allOn ? 'Todas las categorías' : picked.length > 0 && picked.length <= 2 && room.selected.length === picked.reduce((n, g) => n + g.categories.length, 0) ? picked.map((g) => g.name).join(' y ') : `${room.selected.length} de ${room.categories.length} categorías`
   const toggleGroup = (names: string[]) => {
     const allOn = names.every((n) => chosen.has(n))
     choose(allOn ? room.selected.filter((n) => !names.includes(n)) : [...new Set([...room.selected, ...names])])
@@ -70,7 +74,7 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
         <ul className="crowd">
           {room.players.map((p) => (
             <li key={p.id} className={(p.connected ? '' : 'away') + (p.id === me ? ' me' : '')}>
-              {p.id === room.hostId && <span className="crown" title="Anfitrión">♛</span>}
+              {p.id === room.hostId && <span className="crown" title="Host">♛</span>}
               <Avatar a={p.avatar} size={44} />
               <span className="name">{p.id === me ? `${p.nick} (tú)` : p.nick}</span>
               {!p.connected && <span className="off">sin conexión</span>}
@@ -78,8 +82,16 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
           ))}
         </ul>
 
-        <p className="kicker">Categorías {isHost ? '' : '(elige el anfitrión)'}</p>
-        <div className="groups">
+        <div className="dropdown">
+          <button className="dropbtn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            <span>
+              <small>Categorías{isHost ? '' : ' (elige el host)'}</small>
+              {summary}
+            </span>
+            <i aria-hidden>{open ? '▲' : '▼'}</i>
+          </button>
+          {open && (
+        <div className="groups dropmenu">
           <button className={'gbtn all' + (room.selected.length === room.categories.length ? ' on' : '')} disabled={!isHost} aria-pressed={room.selected.length === room.categories.length} onClick={() => choose(room.categories.map((c) => c.name))}>
             ★ Todas las categorías
           </button>
@@ -96,6 +108,8 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
             )
           })}
         </div>
+          )}
+        </div>
         {!enough && room.categories.length > 0 && (
           <p className="error">
             Con estas categorías hay {available} preguntas y se necesitan {QUESTIONS_PER_GAME}.
@@ -108,7 +122,7 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
             {room.players.length < 2 ? 'Esperando jugadores…' : '¡Empezar!'}
           </button>
         ) : (
-          <p className="hint">Esperando a que el anfitrión empiece…</p>
+          <p className="hint">Esperando a que el host empiece…</p>
         )}
         <div className="links">
           <button className="link" onClick={() => setSuggesting(true)}>

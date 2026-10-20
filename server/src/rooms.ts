@@ -252,7 +252,7 @@ export function start(socketId: string): Room {
   const found = findBySocket(socketId)
   if (!found) throw new RoomError('No estás en una sala.')
   const { room, player } = found
-  if (room.hostId !== player.id) throw new RoomError('Solo el anfitrión puede empezar.')
+  if (room.hostId !== player.id) throw new RoomError('Solo el host puede empezar.')
   if (room.phase !== 'lobby') throw new RoomError('La partida ya empezó.')
   if (room.players.size < 2) throw new RoomError('Se necesitan al menos 2 jugadores.')
   const pool = db.playable(selection(room, db.categories().map((c) => c.name)))
@@ -282,7 +282,7 @@ export function setCategories(socketId: string, names: string[]): Room {
   const found = findBySocket(socketId)
   if (!found) throw new RoomError('No estás en una sala.')
   const { room, player } = found
-  if (room.hostId !== player.id) throw new RoomError('Solo el anfitrión elige las categorías.')
+  if (room.hostId !== player.id) throw new RoomError('Solo el host elige las categorías.')
   if (room.phase !== 'lobby') throw new RoomError('La partida ya empezó.')
   const available = db.categories().map((c) => c.name)
   const chosen = [...new Set(names)].filter((n) => available.includes(n))
@@ -297,18 +297,12 @@ export function answer(socketId: string, text: string) {
   return found.room.game.submit(found.player.id, text)
 }
 
-export function hint(socketId: string) {
-  const found = findBySocket(socketId)
-  if (!found?.room.game) throw new RoomError('No hay una partida en curso.')
-  return found.room.game.hint(found.player.id)
-}
-
 /** Host sends everyone back to the lobby once the game is over. */
 export function reset(socketId: string): Room {
   const found = findBySocket(socketId)
   if (!found) throw new RoomError('No estás en una sala.')
   const { room, player } = found
-  if (room.hostId !== player.id) throw new RoomError('Solo el anfitrión puede volver a la sala.')
+  if (room.hostId !== player.id) throw new RoomError('Solo el host puede volver a la sala.')
   if (!room.game?.isFinished()) throw new RoomError('La partida no ha terminado.')
   room.game.dispose()
   room.game = null

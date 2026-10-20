@@ -13,6 +13,7 @@ export interface QuestionRecord extends Question {
   status: Status
   source: Source
   notes: string
+  hint: string // one short line shown under the question; never names a listed answer
   createdAt: number
   updatedAt: number
 }
@@ -25,6 +26,7 @@ export interface QuestionInput {
   status?: Status
   source?: Source
   notes?: string
+  hint?: string
   answers: { label: string; aliases?: string[]; points: number }[]
 }
 
@@ -96,6 +98,11 @@ export function init(path = process.env.DB_PATH ?? join(DATA_DIR, 'lion-eagle.db
   db.exec('PRAGMA busy_timeout = 5000')
   if (path !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
   db.exec(SCHEMA)
+  try {
+    db.exec("ALTER TABLE questions ADD COLUMN hint TEXT NOT NULL DEFAULT ''") // databases made before hints existed
+  } catch {
+    /* the column is already there */
+  }
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM questions').get() as { n: number }
   if (n === 0) {
     for (const q of SAMPLE_QUESTIONS) {
@@ -112,6 +119,7 @@ function toRecord(row: Record<string, unknown>): QuestionRecord {
     status: row.status as Status,
     source: row.source as Source,
     notes: row.notes as string,
+    hint: (row.hint as string | null) ?? '',
     answers: JSON.parse(row.answers as string) as AnswerDef[],
     createdAt: row.created_at as number,
     updatedAt: row.updated_at as number,
@@ -186,12 +194,18 @@ export function saveQuestion(input: QuestionInput): SaveResult {
   const status: Status = demoted ? 'draft' : asked
   const now = Date.now()
   db.prepare(
-    `INSERT INTO questions (id, category, prompt, status, source, notes, answers, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO questions (id, category, prompt, status, source, notes, hint, answers, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET category=excluded.category, prompt=excluded.prompt, status=excluded.status,
-       source=excluded.source, notes=excluded.notes, answers=excluded.answers, updated_at=excluded.updated_at`,
-  ).run(id, q.category, q.prompt, status, q.source ?? existing?.source ?? 'owner', q.notes ?? existing?.notes ?? '', JSON.stringify(q.answers), existing?.createdAt ?? now, now)
+       source=excluded.source, notes=excluded.notes, hint=excluded.hint, answers=excluded.answers, updated_at=excluded.updated_at`,
+  ).run(id, q.category, q.prompt, status, q.source ?? existing?.source ?? 'owner', q.notes ?? existing?.notes ?? '', String(q.hint ?? existing?.hint ?? '').replace(/\s+/g, ' ').trim().slice(0, 160), JSON.stringify(q.answers), existing?.createdAt ?? now, now)
   return { question: getQuestion(id)!, problems, demoted }
+}
+
+/** Sets the hint of an existing question without touching anything else. */
+export function setHint(id: string, hint: string): boolean {
+  const res = db.prepare('UPDATE questions SET hint = ? WHERE id = ?').run(String(hint).replace(/\s+/g, ' ').trim().slice(0, 160), canonicalId(String(id)))
+  return Number(res.changes) > 0
 }
 
 export function getQuestion(id: string): QuestionRecord | null {
@@ -243,7 +257,7 @@ export function playable(names: string[] | null): Question[] {
     .filter((q) => !names || names.includes(q.category))
     // Checked again because the matching rules may have changed since the question was published.
     .filter((q) => validateQuestion(q).length === 0)
-    .map(({ id, category, prompt, answers }) => ({ id, category, prompt, answers }))
+    .map(({ id, category, prompt, answers, hint }) => ({ id, category, prompt, answers, hint }))
 }
 
 /** Publishes every draft that passes the quality checks. Returns how many were published and how many are still incomplete. */

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { CODE_LENGTH, type Ack, type JoinResult, type RoomState } from '../../shared/protocol'
 import { Backdrop } from './Backdrop'
 import { Game } from './Game'
+import { sfx } from './sound'
+import { SoundToggle } from './SoundToggle'
 import { Home } from './Home'
 import { Lobby } from './Lobby'
 import { clearSession, loadProfile, loadSession, saveProfile, saveSession, type Profile } from './session'
@@ -118,10 +120,24 @@ export function App() {
   }
 
   const playing = !!(room && playerId && room.phase === 'playing' && room.game)
+  // Sound: any first tap or key press unlocks audio; buttons click (the answer box has its own sounds).
+  useEffect(() => {
+    const unlock = () => sfx.unlock()
+    const click = (e: MouseEvent) => {
+      const b = (e.target as HTMLElement | null)?.closest('button')
+      if (b && !b.closest('.question') && !b.classList.contains('soundbtn')) sfx.click()
+    }
+    window.addEventListener('pointerdown', unlock, { once: true })
+    window.addEventListener('keydown', unlock, { once: true })
+    document.addEventListener('click', click)
+    return () => document.removeEventListener('click', click)
+  }, [])
+
   return (
     <div className="app">
       {!connected && <div className="banner">Reconectando…</div>}
       {!playing && <Backdrop />}
+      {!playing && <SoundToggle className="fixed" />}
       {restoring && !room ? (
         <main className="screen">
           <p className="box hint">Volviendo a tu sala…</p>

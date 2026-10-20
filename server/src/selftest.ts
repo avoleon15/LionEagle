@@ -7,9 +7,8 @@ import { readdirSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { selectQuestions } from './selection'
 import * as stats from './stats'
-import { Game, GameError } from './game'
+import { Game, GameError, MIN_RETRY_MS } from './game'
 import { RateLimiter } from './ratelimit'
-import { MAX_ATTEMPTS } from '../../shared/protocol'
 import { secondsLeft } from '../../shared/clock'
 import { sanitizeJoin, RoomError } from './rooms'
 import { SAMPLE_QUESTIONS as QUESTIONS } from './questions'
@@ -229,32 +228,33 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   game.dispose()
 }
 
-// ---- attempts per question ----
+// ---- tries per question ----
 {
-  check(MAX_ATTEMPTS >= 3 && MAX_ATTEMPTS <= 10, `attempts: the cap exists and is reasonable (${MAX_ATTEMPTS})`)
   db.init(':memory:')
-  let changes = 0
   const members = ['a', 'b']
-  const game = new Game({ members: () => members, active: () => members, changed: () => changes++ }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })))
-  const view = () => game.view()
-  const q0 = QUESTIONS.find((x) => x.prompt === view().prompt)!
-  let last = game.submit('a', 'respuesta que no existe 0')
-  check(last.valid === false && last.attemptsLeft === MAX_ATTEMPTS - 1, 'attempts: a wrong answer reports how many tries are left')
-  for (let i = 1; i < MAX_ATTEMPTS; i++) last = game.submit('a', 'respuesta que no existe ' + i)
-  check(last.attemptsLeft === 0 && view().exhausted.includes('a'), 'attempts: after the last wrong try the player is marked as out of tries')
-  let refused = false
-  try { game.submit('a', q0.answers[0].label) } catch (e) { refused = e instanceof GameError }
-  check(refused, 'attempts: even a correct answer is refused once the tries are used up')
-  check(view().stage === 'answering', 'attempts: the round keeps going while somebody can still answer')
+  const game = new Game({ members: () => members, active: () => members, changed: () => {} }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })))
+  const q0 = QUESTIONS.find((x) => x.prompt === game.view().prompt)!
+  const realNow = Date.now
+  let clock = realNow()
+  Date.now = () => clock
+  try {
+    for (let i = 0; i < 40; i++) {
+      check(game.submit('a', 'respuesta que no existe ' + i).valid === false || i > 0, 'tries: a wrong answer is just not valid')
+      clock += MIN_RETRY_MS + 10
+    }
+    check(game.view().stage === 'answering', 'tries: there is no cap, forty wrong answers in a row do not end anything')
+    game.submit('a', 'otra mala')
+    let tooFast = false
+    try { game.submit('a', q0.answers[0].label) } catch (e) { tooFast = e instanceof GameError }
+    check(tooFast, 'tries: a retry right after a wrong answer is refused (guessing cannot be scripted)')
+    clock += MIN_RETRY_MS + 10
+    check(game.submit('a', q0.answers[0].label).valid === true, 'tries: a person can still answer right after many wrong tries')
+  } finally {
+    Date.now = realNow
+  }
   game.submit('b', q0.answers[0].label)
-  check(view().stage === 'reveal', 'attempts: the round ends early when everybody has answered or is out of tries')
+  check(game.view().stage === 'reveal', 'tries: the round ends early when everybody has answered')
   game.dispose()
-  const g2 = new Game({ members: () => members, active: () => members, changed: () => {} }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })))
-  const q1 = QUESTIONS.find((x) => x.prompt === g2.view().prompt)!
-  for (let i = 0; i < MAX_ATTEMPTS - 1; i++) g2.submit('a', 'nada ' + i)
-  check(g2.submit('a', q1.answers[0].label).valid === true, 'attempts: a right answer still works after several wrong ones')
-  check(!g2.view().exhausted.includes('a'), 'attempts: a player who answered is not "out of tries"')
-  g2.dispose()
 }
 
 // ---- a question that cannot be played is caught before the game starts ----
@@ -290,22 +290,6 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   const nt = webhookRequest('https://ntfy.sh/mi-tema', 'hola')
   check(nt.body === 'hola' && nt.headers.Title === 'Nueva sugerencia', 'notify: ntfy gets plain text with a title')
   check(JSON.parse(webhookRequest('https://example.com/hook', 'hola').body).text === 'hola', 'notify: anything else gets {text}')
-}
-
-// ---- hints ----
-{
-  const members = ['a', 'b']
-  const game = new Game({ members: () => members, active: () => members, changed: () => {} }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })))
-  const q0 = QUESTIONS.find((x) => x.prompt === game.view().prompt)!
-  const h = game.hint('a')
-  const tiers = h.examples.map((l) => q0.answers.find((a) => a.label === l)?.points)
-  check(h.examples.length === 3 && tiers.join() === '10,30,60', `hint: three real answers from three depths (${tiers.join(',')})`)
-  check(game.hint('b').examples.join() === h.examples.join(), 'hint: everybody in the round gets the same one')
-  let refusedHint = false
-  try { game.hint('zzz') } catch (e) { refusedHint = e instanceof GameError }
-  check(refusedHint, 'hint: somebody who is not in the game gets an error')
-  check(game.view().scores.a === 0, 'hint: asking for it costs nothing')
-  game.dispose()
 }
 
 // ---- live scores ----
@@ -381,7 +365,7 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
 const contentDir = new URL('../../content/', import.meta.url)
 const ids = new Set<string>()
 const byId = new Map<string, number>()
-for (const f of readdirSync(contentDir).filter((n) => n.endsWith('.ts'))) {
+for (const f of readdirSync(contentDir).filter((n) => n.endsWith('.ts') && !n.startsWith('pistas'))) {
   const list = (await import(pathToFileURL(new URL(f, contentDir).pathname).href)).default as { id: string; category: string; prompt: string; answers: { label: string; aliases?: string[]; points: number }[] }[]
   for (const x of list) {
     const problems = validateQuestion({ id: x.id, category: x.category, prompt: x.prompt, answers: x.answers.map((a) => ({ label: a.label, aliases: a.aliases ?? [], points: a.points })) })
@@ -393,5 +377,31 @@ for (const f of readdirSync(contentDir).filter((n) => n.endsWith('.ts'))) {
 }
 const known: Record<string, number> = { elementos: 118, 'africa-paises': 54, 'estados-eeuu': 50, 'pokemon-gen1': 151, 'urss-paises': 15, 'nfl-equipos': 32, 'nba-equipos': 30, 'premier-league-equipos': 51, 'guatemala-departamentos': 22 }
 for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content ${id} has exactly ${n} answers (has ${byId.get(id)})`)
+
+// ---- hints of the content questions ----
+{
+  const hintsDir = new URL('../../content/', import.meta.url)
+  const all: { id: string; answers: { label: string; aliases?: string[] }[] }[] = []
+  const hints: Record<string, string> = {}
+  for (const f of readdirSync(hintsDir).filter((n) => n.endsWith('.ts'))) {
+    const mod = (await import(pathToFileURL(new URL(f, hintsDir).pathname).href)).default
+    if (f.startsWith('pistas')) Object.assign(hints, mod)
+    else all.push(...mod)
+  }
+  const plain = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const missing = all.filter((q) => !hints[q.id]).map((q) => q.id)
+  check(missing.length === 0, `hints: every content question has one${missing.length ? ' (missing: ' + missing.slice(0, 5).join(', ') + ')' : ''}`)
+  const orphan = Object.keys(hints).filter((id) => !all.some((q) => q.id === id))
+  check(orphan.length === 0, `hints: none belongs to a question that does not exist${orphan.length ? ' (' + orphan.slice(0, 5).join(', ') + ')' : ''}`)
+  check(Object.values(hints).every((h) => h.length >= 15 && h.length <= 120), 'hints: every hint is between 15 and 120 characters')
+  const leaks: string[] = []
+  for (const q of all) {
+    const h = plain(hints[q.id] ?? '')
+    for (const a of q.answers) for (const t of [a.label, ...(a.aliases ?? [])]) {
+      if (plain(t).length >= 5 && new RegExp(`(^|[^a-z0-9])${plain(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(h)) leaks.push(`${q.id}:${t}`)
+    }
+  }
+  check(leaks.length === 0, `hints: none contains a listed answer${leaks.length ? ' (' + leaks.slice(0, 5).join(', ') + ')' : ''}`)
+}
 
 process.exit(failed ? 1 : 0)

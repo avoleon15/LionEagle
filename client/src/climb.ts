@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 // The player's own score is shown through a slow climb: when it goes up, the result is shown first
 // (RESULT_MS), then the character rises and the number counts up together.
 
-/** How long the "+80 Muy raro" card stays before the character starts to rise. */
+/** How long the "+80 Águila" card stays before the character starts to rise. */
 export const RESULT_MS = 1600
 
 export interface Climb {

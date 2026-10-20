@@ -1,9 +1,12 @@
-import { MAX_ANSWER_LENGTH, MAX_ATTEMPTS, QUESTIONS_PER_GAME, type AnswerResult, type GameStage, type GameView, type Reveal, type RoundRecord } from '../../shared/protocol'
+import { MAX_ANSWER_LENGTH, QUESTIONS_PER_GAME, type AnswerResult, type GameStage, type GameView, type Reveal, type RoundRecord } from '../../shared/protocol'
 import { REVEAL_MS, ROUND_MS } from './config'
 import { buildIndex, match, suggest, type Index, type Question } from './matching'
 import { logAnswer, recordRound } from './stats'
 
 export class GameError extends Error {}
+
+/** After a wrong answer the next try has to wait this long: a script cannot sweep through answers, a person never notices. */
+export const MIN_RETRY_MS = 250
 
 interface Lock {
   label: string
@@ -19,30 +22,16 @@ export interface GameHooks {
   changed: () => void
 }
 
-/**
- * The question's hint: three accepted answers from different depths (a common one, a fairly common one and a
- * fairly rare one). It only helps to understand what kind of answer is wanted; there are many more.
- */
-export function pickHint(q: Question): string[] {
-  const out: string[] = []
-  for (const tier of [10, 30, 60]) {
-    const pool = q.answers.filter((a) => a.points === tier && !out.includes(a.label))
-    if (pool.length > 0) out.push(pool[Math.floor(Math.random() * pool.length)].label)
-  }
-  return out
-}
-
 export class Game {
   private stage: GameStage = 'answering'
   private round = 0
   private endsAt = 0
   private durationMs = 0
   private locks = new Map<string, Lock>()
-  private wrong = new Map<string, number>() // wrong guesses per player in the current round
+  private lastWrong = new Map<string, number>() // when each player last typed a wrong answer (to slow down guessing)
   private scores = new Map<string, number>()
   private reveal: Reveal | null = null
   private history: RoundRecord[] = []
-  private hintExamples: string[] = []
   private timer: NodeJS.Timeout | null = null
   private readonly questions: Question[]
   private readonly indexes: Index[]
@@ -89,10 +78,9 @@ export class Game {
   private startRound(notify = true) {
     this.stage = 'answering'
     this.locks.clear()
-    this.wrong.clear()
+    this.lastWrong.clear()
     this.reveal = null
     this.index = this.indexes[this.round]
-    this.hintExamples = pickHint(this.question)
     this.schedule(ROUND_MS, () => this.finishRound())
     if (notify) this.changed()
   }
@@ -134,27 +122,22 @@ export class Game {
 
   /** Nothing more this player can do in the current round. */
   private isDone(playerId: string) {
-    return this.locks.has(playerId) || (this.wrong.get(playerId) ?? 0) >= MAX_ATTEMPTS
+    return this.locks.has(playerId)
   }
 
-  /** The first valid answer locks in for the round; a limited number of wrong ones may be retried. */
+  /** The first valid answer locks in for the round. Wrong ones can be retried as often as you like, but not faster than a person types. */
   submit(playerId: string, text: string): AnswerResult {
     if (this.stage !== 'answering') throw new GameError('Ya terminó el tiempo.')
     if (!this.scores.has(playerId)) throw new GameError('No estás en la partida.')
     if (this.locks.has(playerId)) throw new GameError('Ya respondiste esta pregunta.')
-    if (this.isDone(playerId)) throw new GameError('Ya no te quedan intentos en esta pregunta.')
+    if (Date.now() - (this.lastWrong.get(playerId) ?? 0) < MIN_RETRY_MS) throw new GameError('Más despacio.')
     const typed = String(text ?? '').slice(0, MAX_ANSWER_LENGTH)
     const hit = match(this.index, typed)
     logAnswer(this.question.id, typed)
     if (!hit) {
-      const used = (this.wrong.get(playerId) ?? 0) + 1
-      this.wrong.set(playerId, used)
-      if (used >= MAX_ATTEMPTS) {
-        this.changed() // others see that this player is out of tries
-        this.checkEarlyEnd()
-      }
+      this.lastWrong.set(playerId, Date.now())
       const suggestion = suggest(this.index, typed)
-      return { valid: false, attemptsLeft: MAX_ATTEMPTS - used, ...(suggestion ? { suggestion } : {}) }
+      return { valid: false, ...(suggestion ? { suggestion } : {}) }
     }
     this.locks.set(playerId, hit)
     // Scores are live: the player sees their character climb right after answering, and the others see the
@@ -163,13 +146,6 @@ export class Game {
     this.changed()
     this.checkEarlyEnd()
     return { valid: true, label: hit.label, points: hit.points }
-  }
-
-  /** The hint is free and the same for everybody in the round. */
-  hint(playerId: string): { examples: string[] } {
-    if (this.stage !== 'answering') throw new GameError('Ya terminó el tiempo.')
-    if (!this.scores.has(playerId)) throw new GameError('No estás en la partida.')
-    return { examples: [...this.hintExamples] }
   }
 
   /** Ends the round as soon as every connected player has answered or run out of tries. */
@@ -182,7 +158,7 @@ export class Game {
   removePlayer(playerId: string) {
     this.scores.delete(playerId)
     this.locks.delete(playerId)
-    this.wrong.delete(playerId)
+    this.lastWrong.delete(playerId)
     this.checkEarlyEnd()
   }
 
@@ -205,12 +181,12 @@ export class Game {
       total: this.questions.length,
       category: this.question.category,
       prompt: this.question.prompt,
+      hint: this.question.hint ?? '',
       endsAt: this.endsAt,
       durationMs: this.durationMs,
       serverNow: Date.now(),
       scores,
       answered: [...this.locks.keys()].filter((id) => members.has(id)),
-      exhausted: [...this.wrong].filter(([id, n]) => n >= MAX_ATTEMPTS && !this.locks.has(id) && members.has(id)).map(([id]) => id),
       reveal: this.reveal,
       history: this.stage === 'final' ? this.history.map((r) => ({ ...r, results: r.results.filter((x) => members.has(x.playerId)) })) : null,
     }
