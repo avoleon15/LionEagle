@@ -157,11 +157,11 @@ function normalise(input: QuestionInput): QuestionInput & { answers: AnswerDef[]
   const category = String(input.category ?? '').replace(/\s+/g, ' ').trim()
   const prompt = String(input.prompt ?? '').replace(/\s+/g, ' ').trim()
   if (!category || category.length > SUGGESTION_LIMITS.category) throw new InputError('La categoría es obligatoria (máximo 40 letras).')
-  if (prompt.length < 5 || prompt.length > 200) throw new InputError('La pregunta debe tener entre 5 y 200 letras.')
+  if (prompt.length < 5 || prompt.length > 240) throw new InputError('La pregunta debe tener entre 5 y 240 letras.')
   if (input.status !== undefined && !STATUSES.includes(input.status)) throw new InputError('Estado inválido.')
   if (input.source !== undefined && !SOURCES.includes(input.source)) throw new InputError('Origen inválido.')
   if (!Array.isArray(input.answers)) throw new InputError('Faltan las respuestas.')
-  if (input.answers.length > 300) throw new InputError('Demasiadas respuestas (máximo 300).')
+  if (input.answers.length > 400) throw new InputError('Demasiadas respuestas (máximo 400).')
   const answers: AnswerDef[] = input.answers.map((a) => {
     if (typeof a !== 'object' || a === null) throw new InputError('Cada respuesta debe tener un texto y un nivel.')
     const label = String(a.label ?? '').replace(/\s+/g, ' ').trim()
@@ -170,7 +170,7 @@ function normalise(input: QuestionInput): QuestionInput & { answers: AnswerDef[]
     if (!(TIERS as readonly number[]).includes(points)) throw new InputError(`"${label}": el nivel debe ser 10, 30, 60, 80 o 100.`)
     if (a.aliases !== undefined && !Array.isArray(a.aliases)) throw new InputError(`"${label}": los alias deben ser una lista.`)
     const aliases = (a.aliases ?? []).map((x) => String(x).replace(/\s+/g, ' ').trim()).filter(Boolean)
-    if (aliases.length > 12 || aliases.some((x) => x.length > 60)) throw new InputError(`"${label}": demasiados alias o alias muy largos.`)
+    if (aliases.length > 30 || aliases.some((x) => x.length > 60)) throw new InputError(`"${label}": demasiados alias o alias muy largos.`)
     return { label, aliases, points }
   }).filter((a) => a.label)
   return { ...input, category, prompt, answers }

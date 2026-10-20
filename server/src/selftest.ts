@@ -378,6 +378,16 @@ for (const f of readdirSync(contentDir).filter((n) => n.endsWith('.ts') && !n.st
 const known: Record<string, number> = { elementos: 118, 'africa-paises': 54, 'estados-eeuu': 50, 'pokemon-gen1': 151, 'urss-paises': 15, 'nfl-equipos': 32, 'nba-equipos': 30, 'premier-league-equipos': 51, 'guatemala-departamentos': 22 }
 for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content ${id} has exactly ${n} answers (has ${byId.get(id)})`)
 
+// ---- every content question can be saved (the database limits are stricter than the content checks) ----
+{
+  db.init(':memory:')
+  const dir = new URL('../../content/', import.meta.url)
+  const all: any[] = []
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.ts') && !n.startsWith('pistas'))) all.push(...(await import(pathToFileURL(new URL(f, dir).pathname).href)).default)
+  const report = db.importQuestions(all, true)
+  check(report.errors.length === 0 && report.drafts.length === 0, `import: every content question is accepted by the database as published${report.errors[0] ? ' (' + report.errors[0].error + ')' : ''}`)
+}
+
 // ---- hints of the content questions ----
 {
   const hintsDir = new URL('../../content/', import.meta.url)
