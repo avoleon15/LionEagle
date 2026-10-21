@@ -165,7 +165,7 @@ io.on('connection', (socket) => {
 })
 
 http.listen(PORT, () => {
-  console.log(`León server on :${PORT}`)
+  console.log(`Altus server on :${PORT}`)
   // The token is shown only where a person is looking (a terminal), never in hosting logs.
   if (admin.source === 'env') console.log('Admin: /admin (token en la variable ADMIN_TOKEN)')
   else if (process.stdout.isTTY || admin.source === 'generated') console.log(`Admin: /admin  (token: ${admin.token})`)

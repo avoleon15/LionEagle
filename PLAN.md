@@ -1,4 +1,4 @@
-# Lion Eagle (León Águila) — plan
+# Altus — plan (the game was called León Águila and then León; renamed Altus on 2026-10-20; internal names such as the `lion-eagle` packages, the `lion-eagle.db` file and the `leonaguila.*` browser keys were kept so nothing saved breaks)
 
 Multiplayer trivia where the rarer your answer, the higher you climb. Inspired by Krillion, but with friend lobbies, in Spanish, and going **up** into the sky instead of down into the sea. The name is a translation of the owner's surnames (León Aguilar = lion + eagle).
 

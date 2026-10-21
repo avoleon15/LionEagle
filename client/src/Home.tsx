@@ -39,7 +39,7 @@ export function Home({ profile, onProfile, initialCode, error, busy, onCreate, o
     <main className="screen home">
       <header className="title">
         <h1>
-          León
+          Altus
         </h1>
       </header>
 
