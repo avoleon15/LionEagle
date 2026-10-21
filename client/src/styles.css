@@ -448,3 +448,6 @@ main.admin.login { display: grid; place-items: center; }
 .app .clue .note { display: block; color: var(--text); opacity: 0.9; }
 .app button.didyou { animation: glow 0.9s ease-out; }
 @keyframes glow { 0% { transform: scale(0.97); box-shadow: 0 0 0 0 rgba(255, 210, 63, 0.9), 3px 3px 0 var(--ink); } 60% { transform: scale(1.02); } 100% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 210, 63, 0), 3px 3px 0 var(--ink); } }
+
+/* the tier name on the points screen ("Gorrión", "Águila"...) uses the pixel font like the rest of the headings */
+.app .mine span { font-family: var(--pixel); font-weight: 400; letter-spacing: 0.04em; }

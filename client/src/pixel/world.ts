@@ -213,7 +213,9 @@ export function buildWorld(W: number, H: number, found: GamePicture | null): Wor
     // sides is filled with that row's most common colour, so the sky bands and the grass simply continue.
     const pw = picture instanceof HTMLImageElement ? picture.naturalWidth : picture.width
     const ph = picture instanceof HTMLImageElement ? picture.naturalHeight : picture.height
-    const PW = found.wide ? W : Math.min(W, PICTURE_W)
+    // A portrait screen (a phone, or a tablet held upright) always gets the picture across its whole width:
+    // phones with a shorter screen have more than PICTURE_W logical columns, and flat side bars looked wrong there.
+    const PW = found.wide || W <= H ? W : Math.min(W, PICTURE_W)
     const h = Math.max(H + 40, Math.round((ph * PW) / pw))
     const strip = new Painter(PW, h)
     strip.g.imageSmoothingEnabled = true
