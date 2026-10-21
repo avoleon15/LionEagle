@@ -11,12 +11,14 @@ import * as db from './db'
 import { GameError } from './game'
 import { RateLimiter } from './ratelimit'
 import * as rooms from './rooms'
+import { seedContent } from './seed'
 
 const PORT = Number(process.env.PORT ?? 3001)
 const here = dirname(fileURLToPath(import.meta.url))
 const clientDist = pathJoin(here, '../../client/dist')
 
 db.init()
+await seedContent()
 const admin = adminToken()
 
 const app = express()
