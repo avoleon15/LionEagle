@@ -72,14 +72,20 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
           Jugadores {room.players.length}/{MAX_PLAYERS}
         </p>
         <ul className="crowd">
-          {room.players.map((p) => (
-            <li key={p.id} className={(p.connected ? '' : 'away') + (p.id === me ? ' me' : '')}>
-              {p.id === room.hostId && <span className="crown" title="Host">♛</span>}
-              <Avatar a={p.avatar} size={44} />
-              <span className="name">{p.id === me ? `${p.nick} (tú)` : p.nick}</span>
-              {!p.connected && <span className="off">sin conexión</span>}
-            </li>
-          ))}
+          {Array.from({ length: MAX_PLAYERS }, (_, i) => {
+            const p = room.players[i]
+            if (!p) return <li key={`empty-${i}`} className="slot empty" aria-hidden />
+            return (
+              <li key={p.id} className={'slot' + (p.connected ? '' : ' away') + (p.id === me ? ' me' : '')}>
+                <span className="name">
+                  {p.id === room.hostId && <span className="crown" title="Host">♛ </span>}
+                  {p.nick}
+                </span>
+                <Avatar a={p.avatar} size={44} />
+                {!p.connected && <span className="off">sin conexión</span>}
+              </li>
+            )
+          })}
         </ul>
 
         <div className="dropdown">

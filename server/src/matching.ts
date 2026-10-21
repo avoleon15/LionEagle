@@ -17,6 +17,8 @@ export interface Question {
 export interface Hit {
   label: string
   points: number
+  /** An alias written with a leading "~": it does NOT score, it only makes the game suggest this answer. */
+  suggestOnly?: boolean
 }
 
 const ARTICLES = new Set(['el', 'la', 'los', 'las', 'un', 'una'])
@@ -46,12 +48,31 @@ export function keys(raw: string): string[] {
 
 export type Index = Map<string, Hit>
 
+const STOPWORDS = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'un', 'una', 'y', 'e', 'en', 'con', 'the', 'of', 'a'])
+/** The meaningful words of a phrase (accents, case, plural "s" and small words ignored). */
+function strongWords(raw: string): string[] {
+  return words(raw)
+    .filter((w) => !STOPWORDS.has(w))
+    .map((w) => (w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w))
+}
+const owners = new WeakMap<Index, { label: string; words: Set<string>; size: number }[]>()
+
 /** Builds the lookup table for a question. Throws if two answers collide. */
 export function buildIndex(q: Question): Index {
   const index: Index = new Map()
+  const partial: [string, Hit][] = []
+  const who: { label: string; words: Set<string>; size: number }[] = []
   for (const def of q.answers) {
-    for (const text of [def.label, ...def.aliases]) {
+    const all = new Set<string>()
+    for (const raw of [def.label, ...def.aliases]) {
+      const suggestOnly = raw.startsWith('~')
+      const text = suggestOnly ? raw.slice(1) : raw
+      strongWords(text).forEach((w) => all.add(w))
       for (const k of keys(text)) {
+        if (suggestOnly) {
+          partial.push([k, { label: def.label, points: def.points, suggestOnly: true }])
+          continue
+        }
         const prev = index.get(k)
         if (prev && prev.label !== def.label) {
           throw new Error(`"${text}" se confunde con "${prev.label}" (en "${def.label}"). Dos respuestas distintas no pueden escribirse igual.`)
@@ -59,14 +80,18 @@ export function buildIndex(q: Question): Index {
         index.set(k, { label: def.label, points: def.points })
       }
     }
+    who.push({ label: def.label, words: all, size: strongWords(def.label).length })
   }
+  // Suggest-only aliases never override or clash with a real answer: if the key is taken, they are dropped.
+  for (const [k, hit] of partial) if (!index.has(k)) index.set(k, hit)
+  owners.set(index, who)
   return index
 }
 
 export function match(index: Index, text: string): Hit | null {
   for (const k of keys(text)) {
     const hit = index.get(k)
-    if (hit) return hit
+    if (hit && !hit.suggestOnly) return hit
   }
   return null
 }
@@ -101,13 +126,28 @@ export function suggest(index: Index, text: string): string | null {
     const max = allowedEdits(t.length)
     for (const [key, hit] of index) {
       if (Math.abs(key.length - t.length) > max) continue
+      if (hit.suggestOnly) continue // parts of names are judged by suggestPartial, which also checks they are not shared
       const dist = distance(t, key)
       if (dist > max) continue
       if (dist < best) { best = dist; labels.clear() }
       if (dist === best) labels.add(hit.label)
     }
   }
-  return labels.size === 1 ? [...labels][0] : null
+  if (labels.size === 1) return [...labels][0]
+  if (labels.size > 1) return null
+  return suggestPartial(index, text)
+}
+
+/**
+ * Somebody typed only a part of a longer answer ("Utah" for "Utah Jazz"): if the typed words (at least one of
+ * 4+ letters, small words ignored) belong to exactly one answer, that answer is the suggestion. If they could
+ * be several answers ("Manchester") nothing is suggested.
+ */
+function suggestPartial(index: Index, text: string): string | null {
+  const typed = strongWords(text)
+  if (typed.length === 0 || !typed.some((w) => w.length >= 4)) return null
+  const hits = (owners.get(index) ?? []).filter((o) => typed.length < o.size && typed.every((w) => o.words.has(w)))
+  return hits.length === 1 ? hits[0].label : null
 }
 
 export function validateQuestion(q: Question): string[] {

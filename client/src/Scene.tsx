@@ -133,7 +133,8 @@ export function Scene(props: Props) {
       const footY = footBase - lift + bob
 
       // camera: keeps the feet at `focus` of the screen, eased
-      const target = Math.max(0, Math.min(worldH - H, footBase - lift - H * focus))
+      // The camera stays where the character stood: at the end it only flies up and off the screen, the view never travels.
+      const target = Math.max(0, Math.min(worldH - H, footBase - H * focus))
       cam = cam < 0 ? target : cam + (target - cam) * Math.min(1, dt * 3.5)
       const camY = Math.round(cam)
 

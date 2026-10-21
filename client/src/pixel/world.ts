@@ -9,32 +9,62 @@ export const BG_FILES = {
   game: '/bg/game.png', // the tall column for the game, already stacked (ground at the bottom, space at the top)
   gameParts: ['/bg/game-1.png', '/bg/game-2.png', '/bg/game-3.png'], // or the same in 3 pieces: 1 = ground, 2 = sky, 3 = space
   gameWideParts: ['/bg/game-wide-1.png', '/bg/game-wide-2.png', '/bg/game-wide-3.png'], // the same, landscape (1536x1024 each), used on wide screens
+  // The big map: as many pieces as there are files, bottom to top (map-01.png is the ground), up to MAX_MAP_PIECES.
+  map: (n: number) => `/bg/map-${String(n).padStart(2, '0')}.png`,
+  mapWide: (n: number) => `/bg/map-wide-${String(n).padStart(2, '0')}.png`,
   home: '/bg/home.png', // portrait title background
   homeWide: '/bg/home-wide.png', // landscape title background
 }
 
 /** The game column as one picture: game.png, or the pieces stacked (piece 1 at the bottom). Null when there is none. */
+/** Feet on the grass of map-01 (portrait: grass top 214 px of 1536 above the lower edge; landscape: 19.9% of 1024). */
+const MAP_FOOT = 205 / 1536
+const MAP_FOOT_WIDE = 0.185
+
+/** The most pieces of the big map that are looked for. */
+export const MAX_MAP_PIECES = 24
+
 export interface GamePicture {
   image: HTMLCanvasElement | HTMLImageElement
   wide: boolean // landscape pieces: they fill the whole width instead of a phone-width strip
+  foot: number // where the feet stand on the bottom piece, as a share of that piece's height measured from its lower edge
 }
 
 /** On a wide screen the landscape pieces are used when they exist; otherwise the portrait ones. */
 export async function loadGamePicture(preferWide: boolean): Promise<GamePicture | null> {
+  // The big map first (landscape pieces on wide screens, portrait pieces otherwise), then the older 3-piece column.
+  const mapFiles = async (name: (n: number) => string) => {
+    // All pieces are requested at once (not one after the other); only the unbroken run from piece 1 counts.
+    const loaded = await Promise.all(Array.from({ length: MAX_MAP_PIECES }, (_, i) => loadImage(name(i + 1))))
+    const found: string[] = []
+    for (let n = 1; n <= MAX_MAP_PIECES && loaded[n - 1]; n++) found.push(name(n))
+    return found
+  }
+  if (preferWide) {
+    const files = await mapFiles(BG_FILES.mapWide)
+    const tall = files.length > 0 ? await stack(files) : null
+    if (tall) return { image: tall, wide: true, foot: MAP_FOOT_WIDE }
+  }
+  const portrait = await mapFiles(BG_FILES.map)
+  if (portrait.length > 0) {
+    const tall = await stack(portrait)
+    if (tall) return { image: tall, wide: false, foot: MAP_FOOT }
+  }
   if (preferWide) {
     const wide = await stack(BG_FILES.gameWideParts)
-    if (wide) return { image: wide, wide: true }
+    if (wide) return { image: wide, wide: true, foot: 0.115 }
   }
   const whole = await loadImage(BG_FILES.game)
-  if (whole) return { image: whole, wide: false }
+  if (whole) return { image: whole, wide: false, foot: 261 / 1536 }
   const tall = await stack(BG_FILES.gameParts)
-  return tall ? { image: tall, wide: false } : null
+  return tall ? { image: tall, wide: false, foot: 261 / 1536 } : null
 }
 
 async function stack(files: string[]): Promise<HTMLCanvasElement | null> {
   const parts = (await Promise.all(files.map(loadImage))).filter((x): x is HTMLImageElement => x !== null)
   if (parts.length === 0) return null
-  const w = Math.min(files === BG_FILES.gameWideParts ? 768 : 512, ...parts.map((p) => p.naturalWidth))
+  const isWide = parts.length > 0 && parts[0].naturalWidth > parts[0].naturalHeight
+  const w = Math.min(isWide ? 768 : 320, ...parts.map((p) => p.naturalWidth))
   const heights = parts.map((p) => Math.round((p.naturalHeight * w) / p.naturalWidth))
   const c = document.createElement('canvas')
   c.width = w
@@ -46,6 +76,8 @@ async function stack(files: string[]): Promise<HTMLCanvasElement | null> {
     y -= heights[i]
     g.drawImage(p, 0, y, w, heights[i])
   })
+  // The full-size pictures are no longer needed: let them go so phones do not keep them in memory.
+  files.forEach((f) => images.delete(f))
   return c
 }
 
@@ -207,7 +239,7 @@ export function buildWorld(W: number, H: number, found: GamePicture | null): Wor
     p.g.drawImage(strip.canvas, x0, 0)
     // The grass line of the bottom picture is 261 px (of 1536) above its lower edge; a piece is 2:3.
     // Portrait pieces are 2:3 with the grass line 261/1536 above the lower edge; landscape ones are 3:2 with it about 12.9% up (feet 11.5%).
-    const footLow = found.wide ? h - Math.round(PW * (2 / 3) * 0.115) : h - Math.round(PW * 1.5 * (261 / 1536))
+    const footLow = h - Math.round(PW * (found.wide ? 2 / 3 : 1.5) * found.foot)
     return { canvas: p.canvas, footLow, footHigh: FOOT_HIGH, picture: true }
   }
   const h = Math.max(H * 3, 720)

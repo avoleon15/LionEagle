@@ -280,7 +280,7 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   check(suggest(ix, 'Tikla') === 'Tikal', 'suggest: two swapped letters count as one edit')
   check(suggest(ix, 'Tika') === null, 'suggest: very short words get no suggestion')
   check(suggest(ix, 'montaña') === null && suggest(ix, 'playa de arena') === null, 'suggest: unrelated words get nothing')
-  check(suggest(ix, 'semuc') === null, 'suggest: a different number of words is not "close"')
+  check(suggest(ix, 'semuc') === 'Semuc Champey', 'suggest: the first part of a name suggests the whole name')
 }
 
 // ---- suggestion notifications ----
@@ -290,6 +290,29 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   const nt = webhookRequest('https://ntfy.sh/mi-tema', 'hola')
   check(nt.body === 'hola' && nt.headers.Title === 'Nueva sugerencia', 'notify: ntfy gets plain text with a title')
   check(JSON.parse(webhookRequest('https://example.com/hook', 'hola').body).text === 'hola', 'notify: anything else gets {text}')
+}
+
+// ---- a part of a name: it does not score, it suggests ----
+{
+  const { q: dslq } = await import('./dsl')
+  const qq = dslq('parcial', 'x', 'Nombra un equipo.', {
+    10: ['Utah Jazz|Jazz|Utah', 'Los Angeles Lakers|Lakers|Los Angeles', 'Los Angeles Clippers|Clippers', 'Miami Heat|Heat', 'Boston Celtics|Celtics', 'Chicago Bulls|Bulls|!Chicago'],
+    30: ['Manchester United|Man Utd', 'Manchester City|Man City'],
+    60: ['Mansión del bosque|Woodland mansion'],
+    100: ['Roger Federer|Federer|Roger'],
+  }) as any
+  const jazz = qq.answers.find((a: any) => a.label === 'Utah Jazz')
+  check(jazz.aliases.join() === 'Jazz,~Utah', `dsl: only the first-word alias is marked (${jazz.aliases.join()})`)
+  check(qq.answers.find((a: any) => a.label === 'Chicago Bulls').aliases.includes('Chicago'), 'dsl: "!alias" forces an alias to score')
+  const ix = buildIndex(qq)
+  check(match(ix, 'Jazz')?.points === 10 && match(ix, 'Utah Jazz')?.points === 10, 'partial: the last word and the full name still score')
+  check(match(ix, 'Utah') === null && suggest(ix, 'Utah') === 'Utah Jazz', 'partial: "Utah" does not score but suggests "Utah Jazz"')
+  check(match(ix, 'Mansión') === null && suggest(ix, 'mansion') === 'Mansión del bosque', 'partial: "mansion" suggests the full name')
+  check(suggest(ix, 'Los Angeles') === null, 'partial: a part shared by several answers suggests nothing')
+  check(suggest(ix, 'Manchester') === null, 'partial: "Manchester" (United or City) suggests nothing')
+  check(suggest(ix, 'Roger') === 'Roger Federer' && match(ix, 'Roger') === null, 'partial: a first name alone suggests the full name')
+  check(suggest(ix, 'del') === null && suggest(ix, 'los') === null, 'partial: small words never suggest anything')
+  check(suggest(ix, 'Utha') === null, 'partial: a typo on a part is not guessed')
 }
 
 // ---- live scores ----
@@ -407,7 +430,7 @@ for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content 
   const leaks: string[] = []
   for (const q of all) {
     const h = plain(hints[q.id] ?? '')
-    for (const a of q.answers) for (const t of [a.label, ...(a.aliases ?? [])]) {
+    for (const a of q.answers) for (const t of [a.label, ...(a.aliases ?? []).map((x) => x.replace(/^~/, ''))]) {
       if (plain(t).length >= 5 && new RegExp(`(^|[^a-z0-9])${plain(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(h)) leaks.push(`${q.id}:${t}`)
     }
   }

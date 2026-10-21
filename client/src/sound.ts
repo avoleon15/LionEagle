@@ -126,6 +126,12 @@ export const sfx = {
     else tone(N.A5, 0, 0.07, 'square', 0.28)
   },
 
+  /** "Did you mean...?": a soft, curious two-note sound, nothing like the wrong-answer bonk. */
+  maybe() {
+    tone(620, 0, 0.08, 'sine', 0.28)
+    tone(830, 0.08, 0.14, 'sine', 0.28)
+  },
+
   /** Somebody else locked in an answer. */
   pop() {
     tone(660, 0, 0.05, 'sine', 0.22, 880)

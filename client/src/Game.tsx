@@ -5,6 +5,7 @@ import { Avatar } from './Avatar'
 import { RESULT_MS, climbValue, climbing, useClimb, useNow, type Climb } from './climb'
 import { Scene } from './Scene'
 import { socket } from './socket'
+import { splitPrompt } from './prompt'
 import { sfx } from './sound'
 import { SoundToggle } from './SoundToggle'
 
@@ -57,6 +58,7 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
   const [msg, setMsg] = useState('')
   const [hint, setHint] = useState<{ typed: string; label: string } | null>(null)
   const [shake, setShake] = useState(0)
+  const [nudge, setNudge] = useState(0)
   const [sending, setSending] = useState(false)
   const [locked, setLocked] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -102,11 +104,18 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
         setMsg('')
         setHint(null)
       } else {
-        sfx.wrong()
         setHint(res.data.suggestion ? { typed: value, label: res.data.suggestion } : null)
-        setMsg(res.data.suggestion ? '' : 'Esa no está en la lista.')
-        setShake((n) => n + 1)
-        if (!res.data.suggestion) inputRef.current?.select()
+        if (res.data.suggestion) {
+          // Close, not wrong: a gentle sound and a glow instead of the red shake and the "bonk".
+          sfx.maybe()
+          setMsg('')
+          setNudge((n) => n + 1)
+        } else {
+          sfx.wrong()
+          setMsg('Esa no está en la lista.')
+          setShake((n) => n + 1)
+          inputRef.current?.select()
+        }
       }
     })
   }
@@ -128,6 +137,7 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
 
   if (locked || lockedByServer) return climbing(climb, now) ? null : <Waiting secs={secs} />
 
+  const shown = splitPrompt(game.prompt)
   const share = Math.min(1, secs / total)
   const cells = 20
   const lit = Math.ceil(share * cells)
@@ -138,8 +148,13 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
           Pregunta {game.round + 1}/{game.total}
         </span>
       </header>
-      <h2 className="prompt">{game.prompt}</h2>
-      {game.hint && <p className="clue">{game.hint}</p>}
+      <h2 className="prompt">{shown.text}</h2>
+      {(shown.note || game.hint) && (
+        <p className="clue">
+          {shown.note && <span className="note">{shown.note}.</span>}
+          {game.hint}
+        </p>
+      )}
       <div className={'clock' + (secs <= 5 ? ' low' : '')} aria-label={`${Math.ceil(secs)} segundos`}>
         <b>{Math.ceil(secs)}</b>
         <span className="cells">
@@ -171,7 +186,7 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
         </button>
       </form>
       {hint && (
-        <button type="button" className="didyou" onClick={useHint}>
+        <button type="button" key={nudge} className="didyou" onClick={useHint}>
           ¿Quisiste poner <b>{hint.label}</b>? <small>Enter o Tab para usarla</small>
         </button>
       )}
@@ -246,7 +261,7 @@ function Final({ room, game, me, onLeave }: Props) {
           {(game.history ?? []).map((round, i) => (
             <div key={i} className="round-card">
               <p className="rq">
-                <b>{i + 1}.</b> {round.prompt}
+                <b>{i + 1}.</b> {splitPrompt(round.prompt).text}
               </p>
               <ul>
                 {[...round.results]

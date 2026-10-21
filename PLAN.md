@@ -106,3 +106,7 @@ Owner's brief: simpler, feels like a handheld pixel game, based on 1 Krillion (s
 - **Suggestion alert:** set `SUGGESTION_WEBHOOK_URL` (ntfy topic, Discord or Slack webhook, or any URL that takes a JSON `{text}`) and the server posts a message when somebody suggests a question (`server/src/notify.ts`). Suggestions always go to the admin inbox too.
 - **Fix:** opening the link of a different room no longer drops you back into the old saved room.
 - All corrected content was imported into the local database (backup of the old one kept in the session scratchpad).
+
+## Parts of names (2026-10-20)
+- An alias written `~Utah` **does not score**; it only makes the game suggest the full answer ("¿Quisiste poner Utah Jazz?"). `q()` in `server/src/dsl.ts` marks it automatically when the alias is only the FIRST word(s) of a longer label (Utah, Walter, Mansión, Chili); the last word or a nickname (Jazz, Federer, Lakers) still scores. Write `!alias` to force an alias to score. 1,011 aliases are marked.
+- `suggest()` (server/src/matching.ts) also suggests when what was typed are words (one of 4+ letters, small words ignored) that belong to exactly ONE answer ("bosque" -> "Mansión del bosque"). If several answers share them ("Manchester", "Los Ángeles") nothing is suggested. Typos are only corrected on whole answers, not on parts.

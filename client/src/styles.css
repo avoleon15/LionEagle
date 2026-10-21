@@ -419,3 +419,32 @@ main.admin.login { display: grid; place-items: center; }
 .dropbtn small { font-family: var(--pixel); font-weight: 400; font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--rim); }
 .dropbtn i { font-style: normal; color: var(--rim); }
 .dropmenu { padding: 10px; background: #0a0f2c; border: 3px solid var(--rim); }
+
+/* lobby: 12 slots, 3 rows of 4, full name above the character, no grass */
+.crowd { display: grid !important; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px !important; background: #0a0f2c !important; border: 3px solid var(--panel-2) !important; }
+.crowd li.slot { width: auto !important; min-height: 112px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; padding: 6px 4px; background: #151d4a; border: 2px solid var(--panel-2); }
+.crowd li.slot::before { display: none !important; }
+.crowd li.slot.me { border-color: var(--gold); background: #22306f; }
+.crowd li.slot.empty { background: transparent; border: 2px dashed #2a3160; }
+.crowd li.slot .name { max-width: 100% !important; margin: 0 !important; margin-top: auto !important; font-size: 0.78rem; line-height: 1.15; text-align: center; white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere; color: var(--text) !important; text-shadow: none !important; order: -1; }
+.crowd li.slot.me .name { color: var(--gold) !important; }
+.crowd li.slot .crown { position: static !important; display: inline; color: var(--gold); text-shadow: none; }
+.crowd li.slot .off { font-size: 0.6rem; color: var(--red); }
+
+/* lobby slots: no boxes between players; names wrap inside their column; on phones 3 per row and the area scrolls */
+.crowd { gap: 10px 4px !important; padding: 10px 6px !important; border: none !important; }
+.crowd li.slot { min-height: 0 !important; padding: 0 !important; border: none !important; background: transparent !important; justify-content: flex-start !important; min-width: 0; }
+.crowd li.slot.me { border: none !important; background: transparent !important; }
+.crowd li.slot.empty { border: none !important; background: transparent !important; }
+.crowd li.slot .name { order: 0 !important; margin-top: 0 !important; min-height: 2.3em; display: flex; align-items: flex-end; justify-content: center; width: 100%; font-size: 0.74rem; }
+.crowd li.slot.empty { min-height: 92px !important; }
+.crowd li.slot .off { font-size: 0.58rem; }
+@media (max-width: 520px) {
+  .crowd { grid-template-columns: repeat(3, 1fr) !important; max-height: 34dvh; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .crowd li.slot .name { font-size: 0.7rem; }
+}
+
+/* clarification in parentheses moves into the clue; "did you mean" glows softly instead of shaking */
+.app .clue .note { display: block; color: var(--text); opacity: 0.9; }
+.app button.didyou { animation: glow 0.9s ease-out; }
+@keyframes glow { 0% { transform: scale(0.97); box-shadow: 0 0 0 0 rgba(255, 210, 63, 0.9), 3px 3px 0 var(--ink); } 60% { transform: scale(1.02); } 100% { transform: scale(1); box-shadow: 0 0 0 10px rgba(255, 210, 63, 0), 3px 3px 0 var(--ink); } }
