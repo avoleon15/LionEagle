@@ -21,6 +21,13 @@ export function App() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [connected, setConnected] = useState(socket.connected)
+  // The "reconnecting" bar only shows when the connection stays down for a moment, not while the page is still connecting.
+  const [offline, setOffline] = useState(false)
+  useEffect(() => {
+    if (connected) return setOffline(false)
+    const t = setTimeout(() => setOffline(true), 2500)
+    return () => clearTimeout(t)
+  }, [connected])
   // True while we try to get back into the room we were in, so a reload doesn't flash the home screen.
   const [restoring, setRestoring] = useState(() => {
     const s = loadSession()
@@ -135,7 +142,7 @@ export function App() {
 
   return (
     <div className="app">
-      {!connected && <div className="banner">Reconectando…</div>}
+      {offline && <div className="banner">Reconectando…</div>}
       {!playing && <Backdrop />}
       {!playing && <SoundToggle className="fixed" />}
       {restoring && !room ? (

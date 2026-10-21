@@ -14,8 +14,9 @@ body {
   min-height: 100dvh;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--ink);
-  background: #7ec8f2;
+  background: #9c5a30; /* the soil colour of the backgrounds: if a phone's browser bars leave a strip uncovered it looks like ground, not a blue gap */
 }
+html { background: #9c5a30; }
 
 h1 { margin: 0; font-size: 2.2rem; }
 .tagline { margin: 0; opacity: 0.75; }
@@ -451,3 +452,6 @@ main.admin.login { display: grid; place-items: center; }
 
 /* the tier name on the points screen ("Gorrión", "Águila"...) uses the pixel font like the rest of the headings */
 .app .mine span { font-family: var(--pixel); font-weight: 400; letter-spacing: 0.04em; }
+
+/* on phones the browser bars slide away: size the backgrounds to the large viewport so no strip is left uncovered */
+@supports (height: 100lvh) { .backdrop, .scene { bottom: auto; height: 100lvh; } }
