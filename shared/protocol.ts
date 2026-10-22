@@ -1,7 +1,7 @@
 // Types and constants shared by client and server.
 
 export const MAX_PLAYERS = 12
-export const MAX_NICK = 16
+export const MAX_NICK = 18
 export const CODE_LENGTH = 4
 
 export const AVATAR_OPTIONS = { color: 12, face: 12, hat: 11 } as const
@@ -92,7 +92,7 @@ export interface SuggestionPayload {
   answers: string // free text: a few example answers, optional
   nick: string
 }
-export const SUGGESTION_LIMITS = { prompt: 200, category: 40, answers: 600, nick: 16 } as const
+export const SUGGESTION_LIMITS = { prompt: 200, category: 40, answers: 600, nick: MAX_NICK } as const
 
 export interface JoinPayload {
   code?: string // omit to create a new room

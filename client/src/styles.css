@@ -439,3 +439,16 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .stage > .box.final { max-height: calc(100dvh - 134px); }
 .final .table li { padding: 3px 8px; }
 .final .prompt { font-size: 1.6rem; }
+
+/* home: "Crear sala" and "Unirme" are the same size; Unirme is the bright yellow one */
+.app .maker .join { flex-direction: column; gap: 12px; }
+.app .maker button.create, .app .maker button.joinbtn { width: 100%; }
+.app .maker button.joinbtn { background: #ffe83a; color: var(--ink); box-shadow: inset -3px -3px 0 #d9a800, inset 3px 3px 0 #fffbb0, 4px 4px 0 var(--ink); }
+
+/* the answer box: a grey trash can inside, at the right end, that empties it */
+.answer .inputwrap { position: relative; flex: 1; min-width: 0; display: flex; }
+.answer .inputwrap input { flex: 1; min-width: 0; padding-right: 46px; }
+.app .answer button.trash { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; padding: 0; display: grid; place-items: center; background: none; border: none; box-shadow: none; color: #8a93b8; }
+.app .answer button.trash:hover:not(:disabled) { color: var(--text); }
+.app .answer button.trash:active:not(:disabled) { transform: translateY(-50%); box-shadow: none; }
+.app .answer button.trash:disabled { opacity: 0.35; }

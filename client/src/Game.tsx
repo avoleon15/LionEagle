@@ -164,23 +164,42 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
         </span>
       </div>
       <form onSubmit={submit} className="answer">
-        <input
-          key={shake}
-          ref={inputRef}
-          className={shake ? 'shake' : ''}
-          value={text}
-          maxLength={MAX_ANSWER_LENGTH}
-          placeholder="Tu respuesta"
-          autoComplete="off"
-          autoCapitalize="none"
-          enterKeyHint="send"
-          disabled={!connected}
-          onKeyDown={onKeyDown}
-          onChange={(e) => {
-            setText(e.target.value)
-            if (hint) setHint(null)
-          }}
-        />
+        <div className="inputwrap">
+          <input
+            key={shake}
+            ref={inputRef}
+            className={shake ? 'shake' : ''}
+            value={text}
+            maxLength={MAX_ANSWER_LENGTH}
+            placeholder="Tu respuesta"
+            autoComplete="off"
+            autoCapitalize="none"
+            enterKeyHint="send"
+            disabled={!connected}
+            onKeyDown={onKeyDown}
+            onChange={(e) => {
+              setText(e.target.value)
+              if (hint) setHint(null)
+            }}
+          />
+          <button
+            type="button"
+            className="trash"
+            aria-label="Borrar lo que escribiste"
+            title="Borrar"
+            disabled={!text || !connected}
+            onClick={() => {
+              setText('')
+              setHint(null)
+              setMsg('')
+              inputRef.current?.focus()
+            }}
+          >
+            <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden shapeRendering="crispEdges">
+              <path fill="currentColor" d="M6 1h4v1h4v2H2V2h4V1zm-3 4h10v10H3V5zm2 2v6h1V7H5zm3 0v6h1V7H8zm3 0v6h1V7h-1z" />
+            </svg>
+          </button>
+        </div>
         <button className="primary" disabled={!text.trim() || sending || !connected}>
           Enviar
         </button>
