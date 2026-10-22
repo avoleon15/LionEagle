@@ -45,7 +45,6 @@ export default {
   'ufc-campeones-peso-pesado': 'Piensa en leyendas de los primeros años, en luchadores de otros países y en alguno que cambió de deporte.',
   'ufc-campeones-semipesado': 'Piensa en estrellas de la era moderna, pero también en nombres del inicio de la liga.',
   'ufc-campeonas': 'Hay campeonas de varias divisiones, de distintos países y de distintas épocas.',
-  'fortnite-c1-lugares': 'Hay pueblos, fábricas, lagos y bosques; algunos son de nombres que casi nadie recuerda.',
   'r6-mapas': 'Hay mansiones, aviones, universidades, bancos y edificios en ciudades de todo el mundo.',
   'cod-zombies-mapas': 'Piensa en mapas clásicos de los primeros juegos, en los de nombre alemán y en minijuegos aparte.',
   'gta5-carros': 'Hay superdeportivos, motos, camionetas y todoterrenos; también coches viejos y aburridos.',

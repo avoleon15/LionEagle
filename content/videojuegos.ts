@@ -3,14 +3,6 @@ import { q } from '../server/src/dsl'
 const NIVELES = 'Niveles estimados según qué tan seguido la gente nombra cada respuesta; hay que calibrarlos con partidas reales.'
 
 export default [
-  q('fortnite-c1-lugares', 'Videojuegos', 'Nombra un lugar de Fortnite del Capítulo 1.', {
-    10: ['Tilted Towers|Tilted', 'Pleasant Park', 'Retail Row'],
-    30: ['Salty Springs', 'Dusty Depot|Dusty Divot', 'Loot Lake', 'Lonely Lodge', 'Greasy Grove', 'Tomato Town|Tomato Temple'],
-    60: ['Anarchy Acres', 'Flush Factory', 'Wailing Woods', 'Fatal Fields', 'Junk Junction', 'Shifty Shafts', 'Haunted Hills', 'Snobby Shores', 'Lucky Landing', 'Moisty Mire', 'Paradise Palms'],
-    80: ['Lazy Links', 'Lazy Lagoon', 'Risky Reels', 'Happy Hamlet', 'Frosty Flights', 'Polar Peak', 'Viking Village', 'Pressure Plant', 'The Block|El Bloque', 'Leaky Lake', 'Neo Tilted', 'Mega Mall', 'Tilted Town'],
-    100: ['Sunny Steps', 'Gotham City|Gotham'],
-  }, `Lugares con nombre del mapa del Capítulo 1 (temporadas 1 a 10), en inglés tal como salen en el juego. Dusty Depot y Dusty Divot cuentan como el mismo lugar. Es de memoria + una búsqueda parcial: conviene que alguien que juegue Fortnite lo revise. ${NIVELES} Revisada 2026-10-15: faltaban Leaky Lake (temporadas 5 a 7), Neo Tilted y Mega Mall (temporada 9), Tilted Town y Gotham City (temporada X).`),
-
   q('r6-mapas', 'Videojuegos', 'Nombra un mapa de Rainbow Six Siege.', {
     10: ['Bank|Banco', 'Clubhouse|Club House|Club', 'Consulate|Consulado', 'Oregon', 'Kafe Dostoyevsky|Kafe|Café|Kafe Dostoevsky|Cafe Dostoyevsky', 'Chalet'],
     30: ['Border|Frontera', 'Skyscraper|Rascacielos', 'Coastline|Costa', 'Villa', 'Theme Park|Parque de diversiones', 'Hereford Base|Hereford', 'House|Casa', 'Yacht|Yate', 'Kanal|Canal', 'Favela'],
