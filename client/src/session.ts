@@ -1,4 +1,5 @@
 import { AVATAR_OPTIONS, type Avatar } from '../../shared/protocol'
+import { randomNick } from './nickname'
 
 const KEY = 'leonaguila.profile'
 const SESSION_KEY = 'leonaguila.session'
@@ -37,11 +38,11 @@ export const randomAvatar = (): Avatar => ({
 /** Profiles saved by older versions still carry `hair` or `pants`: keep only what exists now. */
 export const loadProfile = (): Profile => {
   const saved = read<Profile>(KEY)
-  if (!saved) return { nick: '', avatar: randomAvatar() }
+  if (!saved) return { nick: randomNick(), avatar: randomAvatar() }
   const fresh = randomAvatar()
   const pick = (key: keyof Avatar) => (Number.isFinite(saved.avatar?.[key]) ? saved.avatar[key] : fresh[key])
   const wrap = (key: keyof Avatar) => ((Math.floor(pick(key)) % AVATAR_OPTIONS[key]) + AVATAR_OPTIONS[key]) % AVATAR_OPTIONS[key]
-  return { nick: String(saved.nick ?? ''), avatar: { color: wrap('color'), face: wrap('face'), hat: wrap('hat') } }
+  return { nick: String(saved.nick ?? '').trim() || randomNick(), avatar: { color: wrap('color'), face: wrap('face'), hat: wrap('hat') } }
 }
 export const saveProfile = (p: Profile) => write(KEY, p)
 export const loadSession = () => read<Session>(SESSION_KEY)

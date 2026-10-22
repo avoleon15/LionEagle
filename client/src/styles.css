@@ -173,16 +173,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 
 /* ---------- playing ---------- */
 .play { position: fixed; inset: 0; display: flex; flex-direction: column; }
-.hud { position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: max(10px, env(safe-area-inset-top)) 10px 0; }
-.app .board { list-style: none; margin: 0; padding: 8px 10px; display: flex; flex-direction: column; gap: 3px; min-width: 176px; }
-.board li { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; padding: 2px 4px; }
-.board li.me { background: var(--gold); color: var(--ink); }
-.board .rank { width: 16px; text-align: right; color: var(--rim); }
-.board li.me .rank { color: var(--ink); }
-.board .nick { flex: 1; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.board .tick { color: var(--green); }
-.board li.me .tick { color: #1f6b14; }
-.board .pts { min-width: 34px; text-align: right; font-weight: 700; }
+.hud { position: relative; z-index: 2; display: flex; justify-content: flex-end; align-items: flex-start; gap: 10px; padding: max(10px, env(safe-area-inset-top)) 10px 0; }
 .hud-right { display: flex; gap: 8px; align-items: center; }
 .pill-chip { padding: 6px 10px; background: var(--ink); color: var(--gold); border: 2px solid var(--gold); letter-spacing: 0.1em; }
 .app .exit { width: 40px; height: 40px; padding: 0; font-size: 1rem; }
@@ -249,10 +240,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .place.p1 { background: var(--gold); color: var(--ink); } .place.p2 { background: #c9d3e3; color: var(--ink); } .place.p3 { background: #d08a4a; color: var(--ink); }
 
 @media (max-width: 520px) {
-  .app .board { min-width: 0; padding: 6px 8px; }
-  .board li { font-size: 0.8rem; }
-  .board .nick { max-width: 72px; }
-  .stage { padding-top: 12px; }
+        .stage { padding-top: 12px; }
   .code { font-size: 2.6rem; }
 }
 
@@ -261,7 +249,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 
 /* ---------- neutral text, pixel font only for titles ---------- */
 .app .title h1, .app .kicker, .app .qhead, .app .code, .app .result .points, .app .result .tierline, .app .final .prompt, .app button, .app .place, .app .pill-chip, .app .mine b, .app .gain, .app .banner { font-family: var(--pixel); }
-.app .clock b, .app .board, .app .score, .app .pts { font-variant-numeric: tabular-nums; }
+.app .clock b, .app .score, .app .pts { font-variant-numeric: tabular-nums; }
 .app .clock b { font-family: inherit; font-weight: 700; }
 .app button { letter-spacing: 0.04em; }
 .app .prompt { font-weight: 650; }
@@ -283,7 +271,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .reveal .mine { justify-content: space-between; }
 
 /* final: everybody's answers */
-.final > button:not(.primary):not(.link) { align-self: center; }
+.final-scroll > button:not(.primary):not(.link) { align-self: center; }
 .details { display: flex; flex-direction: column; gap: 10px; text-align: left; max-height: 42dvh; overflow: auto; padding-right: 4px; }
 .round-card .rq { margin: 0 0 4px; font-size: 0.9rem; color: var(--muted); }
 .round-card ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -302,7 +290,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .app .gbtn.some { background: #4a4a2a; color: var(--text); border-style: dashed; border-color: var(--gold); }
 .app .gbtn:disabled { opacity: 1; cursor: default; }
 .group .cats { padding-left: 12px; }
-.final > *, .reveal > * { flex-shrink: 0; }
+.final > *, .final-scroll > *, .reveal > * { flex-shrink: 0; }
 
 .round-card .rarity { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
 .round-card li.t60 .rarity { color: var(--green); } .round-card li.t80 .rarity { color: var(--blue); } .round-card li.t100 .rarity { color: var(--gold); }
@@ -417,9 +405,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .final { max-height: calc(100dvh - 32px); overflow-y: auto; }
 .podium { display: flex; justify-content: center; align-items: flex-end; gap: 8px; padding-top: 4px; }
 .podium .step { flex: 1; min-width: 0; max-width: 118px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.podium .pname { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
-.podium .pscore { font-family: var(--pixel); font-size: 1.1rem; }
-.podium .step.me .pname { color: var(--gold); }
+.podium .step.me .block { outline: 3px solid #fff2a8; outline-offset: 1px; }
 .podium .block { width: 100%; height: auto; display: grid; place-items: start center; padding-top: 6px; font-size: 1.4rem; border-width: 3px; box-shadow: 3px 3px 0 var(--ink); }
 .podium .s1 .block { min-height: 86px; } .podium .s2 .block { min-height: 62px; } .podium .s3 .block { min-height: 46px; }
 .final .kicker { margin: 4px 0 -4px; text-align: left; }
@@ -436,6 +422,49 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .app .sbtn.on { background: #3a3a1a; color: var(--gold); border-color: var(--gold); }
 .app .sbtn:disabled { opacity: 1; cursor: default; }
 .box-mark { font-size: 1rem; line-height: 1; }
-.stage > .box.final { max-height: calc(100dvh - 134px); }
+.stage > .box.final { max-height: calc(100dvh - 134px); padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+/* the podium and the table scroll in here; the buttons live in .final-actions and never scroll away or poke out of the box */
+.final-scroll { flex: 1; min-height: 0; margin: 6px 6px 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 18px 10px; display: flex; flex-direction: column; gap: 12px; text-align: center; }
+.final-actions { flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 18px 14px; border-top: 3px solid var(--panel-2); text-align: center; margin: 0 6px 6px; }
+.final-actions > button:not(.link) { min-width: 220px; }
+.final-actions .hint, .final-actions .error { margin: 0; }
+.final .details { max-height: none; overflow: visible; padding-right: 0; }
 .final .table li { padding: 3px 8px; }
 .final .prompt { font-size: 1.6rem; }
+
+/* home: the code and "Unirme" (bright yellow) share a row; "Crear sala" goes below, a bit slimmer */
+.app .maker .join { flex-direction: row; gap: 10px; align-items: stretch; }
+.app .maker .join input { flex: 1; min-width: 0; }
+.app .maker button.joinbtn { flex: 0 0 38%; padding: 12px 8px; font-size: 1.15rem; background: #ffe83a; color: var(--ink); box-shadow: inset -3px -3px 0 #d9a800, inset 3px 3px 0 #fffbb0, 4px 4px 0 var(--ink); }
+.app .maker button.create { width: 100%; padding: 9px 14px; font-size: 1.05rem; }
+
+/* the answer box: a grey trash can inside, at the right end, that empties it */
+.answer .inputwrap { position: relative; flex: 1; min-width: 0; display: flex; }
+.answer .inputwrap input { flex: 1; min-width: 0; padding-right: 46px; }
+.app .answer button.trash { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; padding: 0; display: grid; place-items: center; background: none; border: none; box-shadow: none; color: #8a93b8; }
+.app .answer button.trash:hover:not(:disabled) { color: var(--text); }
+.app .answer button.trash:active:not(:disabled) { transform: translateY(-50%); box-shadow: none; }
+.app .answer button.trash:disabled { opacity: 0.35; }
+
+/* the ranking between questions: rows slide to their new places, scores count up, a green or red arrow tells who moved */
+.reveal .ranktable { list-style: none; margin: 0; padding: 0; position: relative; text-align: left; }
+.ranktable li { position: absolute; left: 0; right: 0; height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 4px; background: rgba(10, 15, 44, 0.7); transition: transform 0.95s cubic-bezier(0.22, 1, 0.36, 1); }
+.ranktable li.me { background: var(--gold); color: var(--ink); outline: 3px solid #fff2a8; }
+.ranktable li.moving { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25); }
+.ranktable .arrowslot { width: 14px; flex: none; display: grid; place-items: center; margin-left: 2px; }
+.ranktable .arrow { animation: arrowpop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+.ranktable .arrow.up { color: #4fe03a; }
+.ranktable .arrow.down { color: #ff4040; }
+.ranktable li.me .arrow.up { color: #138a06; }
+.ranktable li.me .arrow.down { color: #c4001a; }
+.ranktable .who { flex: 1; min-width: 0; font-size: 0.9rem; line-height: 1.05; white-space: normal; overflow-wrap: anywhere; }
+.ranktable .gain { min-width: 34px; font-size: 0.9rem; text-align: right; color: var(--muted); opacity: 0; transition: opacity 0.4s ease 0.3s; }
+.ranktable .gain.on { opacity: 1; }
+.ranktable .gain.t10 { color: var(--t10); } .ranktable .gain.t30 { color: var(--t30); } .ranktable .gain.t60 { color: var(--t60); }
+.ranktable .gain.t80 { color: var(--t80); } .ranktable .gain.t100 { color: var(--t100); }
+.ranktable li.me .gain { color: var(--ink); }
+.ranktable .score { min-width: 40px; text-align: right; font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+@keyframes arrowpop { from { transform: translateY(6px) scale(0.2); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ranktable li { transition: none; } .ranktable .arrow { animation: none; } }
+
+.stage > .box.reveal { max-height: calc(100dvh - 80px); overflow-y: auto; }
