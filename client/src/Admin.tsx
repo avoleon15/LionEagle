@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TIERS, tierLabel } from '../../shared/protocol'
+import './admin.css'
 
 // Owner tool at /admin. Everything goes through /api/admin with the admin token.
 
@@ -222,10 +223,14 @@ function Questions({ token, counts, refresh, edit, setEdit }: { token: string; c
         <button className="primary" onClick={() => setEdit(blank(category))}>+ Nueva pregunta</button>
       </div>
       {error && <p className="error">{error}</p>}
-      <p className="hint">
-        {counts?.questions.published ?? 0} publicadas · {counts?.questions.draft ?? 0} borradores · {counts?.questions.archived ?? 0} archivadas.
-        Para jugar se necesitan al menos 7 publicadas en las categorías elegidas.
-      </p>
+      <div className="tiles">
+        <div className="tile published"><b>{counts?.questions.published ?? 0}</b><span>Publicadas</span></div>
+        <div className="tile"><b>{counts?.questions.draft ?? 0}</b><span>Borradores</span></div>
+        <div className="tile"><b>{counts?.questions.archived ?? 0}</b><span>Archivadas</span></div>
+        <div className="tile suggest"><b>{counts?.newSuggestions ?? 0}</b><span>Sugerencias nuevas</span></div>
+      </div>
+      <p className="hint">Para jugar se necesitan al menos 7 publicadas en las categorías elegidas.</p>
+      <div className="actions">
       {(counts?.questions.draft ?? 0) > 0 && (
         <button onClick={async () => {
           const r = await call<{ published: number; waiting: number }>(token, '/publish-ready', 'POST', {})
@@ -240,6 +245,7 @@ function Questions({ token, counts, refresh, edit, setEdit }: { token: string; c
           void load(); refresh()
         }}>Archivar las preguntas de muestra</button>
       )}
+      </div>
       <ul className="qlist">
         {list.map((q) => (
           <li key={q.id} onClick={() => void open(q.id)}>
@@ -412,22 +418,85 @@ function Stats({ token, openQuestion }: { token: string; openQuestion: (id: stri
   )
 }
 
+/** The form to turn something players typed into an answer: the owner picks its name, its aliases and its tier. */
+function AddForm({ u, answers, onSave, onCancel }: { u: LoggedAnswer; answers: AnswerStat[]; onSave: (body: Record<string, unknown>) => Promise<void>; onCancel: () => void }) {
+  const [mode, setMode] = useState<'new' | 'alias'>('new')
+  const [label, setLabel] = useState(u.text)
+  const [aliases, setAliases] = useState('')
+  const [points, setPoints] = useState(60)
+  const [includeTyped, setIncludeTyped] = useState(true)
+  const [target, setTarget] = useState('')
+  const [aliasText, setAliasText] = useState(u.text)
+  const [busy, setBusy] = useState(false)
+  const split = (t: string) => t.split(/[|,\n]/).map((x) => x.trim()).filter(Boolean)
+  const typedIsName = label.trim().toLowerCase() === u.text.toLowerCase()
+  const submit = async () => {
+    setBusy(true)
+    await onSave(mode === 'new'
+      ? { text: u.text, label: label.trim(), aliases: split(aliases), points, includeTyped }
+      : { text: u.text, alias: true, label: target, aliases: split(aliasText) })
+    setBusy(false)
+  }
+  return (
+    <div className="addform editor" style={{ flexBasis: '100%' }}>
+      <div className="row">
+        <label className="check"><input type="radio" checked={mode === 'new'} onChange={() => setMode('new')} /> Respuesta nueva</label>
+        <label className="check"><input type="radio" checked={mode === 'alias'} onChange={() => setMode('alias')} /> Otra forma de escribir una que ya existe</label>
+      </div>
+      {mode === 'new' ? (
+        <>
+          <label>Nombre de la respuesta (el que se muestra)
+            <input value={label} onChange={(e) => setLabel(e.target.value)} />
+          </label>
+          <label>Alias: otras formas de escribirla (separados por coma o |)
+            <input value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="por ejemplo: Rey León, Simba" />
+          </label>
+          {!typedIsName && (
+            <label className="check"><input type="checkbox" checked={includeTyped} onChange={(e) => setIncludeTyped(e.target.checked)} /> También aceptar “{u.text}” (lo que escribieron los jugadores)</label>
+          )}
+          <label>Nivel
+            <select value={points} onChange={(e) => setPoints(Number(e.target.value))}>
+              {TIERS.map((t) => <option key={t} value={t}>{t} · {tierLabel(t)}</option>)}
+            </select>
+          </label>
+        </>
+      ) : (
+        <>
+          <label>Respuesta a la que se le agrega
+            <select value={target} onChange={(e) => setTarget(e.target.value)}>
+              <option value="">Elige una…</option>
+              {answers.map((a) => <option key={a.label} value={a.label}>{a.label}</option>)}
+            </select>
+          </label>
+          <label>Formas de escribirla que se agregan (separadas por coma o |)
+            <input value={aliasText} onChange={(e) => setAliasText(e.target.value)} />
+          </label>
+        </>
+      )}
+      <div className="row">
+        <button className="primary" disabled={busy || (mode === 'new' ? !label.trim() : !target || split(aliasText).length === 0)} onClick={submit}>
+          {mode === 'new' ? 'Agregar respuesta' : 'Agregar alias'}
+        </button>
+        <button onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  )
+}
+
 function StatDetailView({ token, id, onBack, openQuestion }: { token: string; id: string; onBack: () => void; openQuestion: (id: string) => void }) {
   const [d, setD] = useState<StatDetail | null>(null)
-  const [tier, setTier] = useState<Record<string, number>>({})
-  const [target, setTarget] = useState<Record<string, string>>({})
+  const [adding, setAdding] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
 
   const load = useCallback(async () => setD(await call<StatDetail>(token, `/stats/${id}`)), [token, id])
   useEffect(() => { void load() }, [load])
 
-  const add = async (u: LoggedAnswer, alias: boolean) => {
+  const save = async (u: LoggedAnswer, body: Record<string, unknown>) => {
     setMsg('')
     try {
-      const r = await call<{ problems: string[]; demoted: boolean }>(token, `/stats/${id}/add`, 'POST', alias
-        ? { text: u.text, alias: true, label: target[u.key] }
-        : { text: u.text, points: tier[u.key] ?? 60 })
+      const r = await call<{ problems: string[]; demoted: boolean }>(token, `/stats/${id}/add`, 'POST', body)
       if (r.demoted) setMsg(`"${u.text}" se agregó, pero la pregunta pasó a borrador: ${r.problems.join(' ')}`)
+      setAdding(null)
       await load()
     } catch (e) {
       setMsg((e as Error).message)
@@ -462,18 +531,14 @@ function StatDetailView({ token, id, onBack, openQuestion }: { token: string; id
           <li key={u.key} className={u.ignored ? 'ignored' : ''} style={{ cursor: 'default' }}>
             <span className="q-prompt">{u.text}<small>{u.count} {u.count === 1 ? 'vez' : 'veces'}{u.ignored ? ' · ignorada' : ''}</small></span>
             {!u.ignored ? (
-              <>
-                <select value={tier[u.key] ?? 60} onChange={(e) => setTier({ ...tier, [u.key]: Number(e.target.value) })}>
-                  {TIERS.map((t) => <option key={t} value={t}>{t} · {tierLabel(t)}</option>)}
-                </select>
-                <button className="primary" onClick={() => add(u, false)}>Agregar como respuesta</button>
-                <select value={target[u.key] ?? ''} onChange={(e) => setTarget({ ...target, [u.key]: e.target.value })}>
-                  <option value="">…o alias de</option>
-                  {d.answers.map((a) => <option key={a.label} value={a.label}>{a.label}</option>)}
-                </select>
-                <button disabled={!target[u.key]} onClick={() => add(u, true)}>Agregar alias</button>
-                <button onClick={() => ignore(u, true)}>Ignorar</button>
-              </>
+              adding === u.key ? (
+                <AddForm u={u} answers={d.answers} onSave={(body) => save(u, body)} onCancel={() => setAdding(null)} />
+              ) : (
+                <>
+                  <button className="primary" onClick={() => { setMsg(''); setAdding(u.key) }}>Agregar…</button>
+                  <button onClick={() => ignore(u, true)}>Ignorar</button>
+                </>
+              )
             ) : (
               <button onClick={() => ignore(u, false)}>Dejar de ignorar</button>
             )}
@@ -552,18 +617,19 @@ export function Admin() {
 
   return (
     <main className="admin">
-      <header>
-        <h1>Altus · Administrador</h1>
+      <header className="adminbar">
+        <h1>ALTUS<small>Administrador</small></h1>
         <nav>
           <button className={tab === 'preguntas' ? 'on' : ''} onClick={() => setTab('preguntas')}>Preguntas</button>
           <button className={tab === 'sugerencias' ? 'on' : ''} onClick={() => setTab('sugerencias')}>
-            Sugerencias{counts && counts.newSuggestions > 0 ? ` (${counts.newSuggestions})` : ''}
+            Sugerencias{counts && counts.newSuggestions > 0 && <span className="count">{counts.newSuggestions}</span>}
           </button>
           <button className={tab === 'respuestas' ? 'on' : ''} onClick={() => setTab('respuestas')}>Respuestas de jugadores</button>
           <button className={tab === 'importar' ? 'on' : ''} onClick={() => setTab('importar')}>Importar / exportar</button>
           <button className="link" onClick={() => { try { sessionStorage.removeItem(TOKEN_KEY) } catch { /* ignore */ } setToken(''); setOk(false) }}>Salir</button>
         </nav>
       </header>
+      <div className="panel">
       {tab === 'preguntas' && <Questions token={token} counts={counts} refresh={refresh} edit={edit} setEdit={setEdit} />}
       {tab === 'sugerencias' && <Suggestions token={token} refresh={refresh} openDraft={(q) => { setEdit(fromQuestion(q)); setTab('preguntas') }} />}
       {tab === 'respuestas' && (
@@ -574,6 +640,7 @@ export function Admin() {
         }} />
       )}
       {tab === 'importar' && <ImportExport token={token} refresh={refresh} />}
+      </div>
     </main>
   )
 }

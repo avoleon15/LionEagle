@@ -162,6 +162,23 @@ check(thrown(() => stats.addFromLog(sq.id, 'x', { alias: true, label: 'No existe
   check(!stats.addFromLog(sq.id, 'azulado', { alias: true, label: 'Rojo' }).demoted && db.getQuestion(sq.id)!.status === 'draft', 'alias guard: a draft is edited normally')
   db.setStatus(sq.id, 'published')
 }
+{
+  // the owner picks the name and the aliases of what is added; what players typed is accepted too unless turned off
+  stats.logAnswer(sq.id, 'rosadito')
+  stats.addFromLog(sq.id, 'rosadito', { points: 80, label: 'Rosa', aliases: ['Rosado', ' rosa  claro '] })
+  const rosa = db.getQuestion(sq.id)!.answers.find((a) => a.label === 'Rosa')!
+  check(rosa.points === 80 && rosa.aliases.join('|') === 'Rosado|rosa claro|rosadito', 'owner-chosen name and aliases are saved, with the typed text added')
+  stats.logAnswer(sq.id, 'violeta claro')
+  stats.addFromLog(sq.id, 'violeta claro', { points: 60, label: 'Violeta', includeTyped: false })
+  const vio = db.getQuestion(sq.id)!.answers.find((a) => a.label === 'Violeta')!
+  check(vio.aliases.length === 0, 'the typed text can be left out of the aliases')
+  stats.setIgnored(sq.id, 'violeta claro', true)
+  stats.logAnswer(sq.id, 'rojo clarito')
+  stats.addFromLog(sq.id, 'rojo clarito', { alias: true, label: 'Rojo', aliases: ['Rojo suave', 'rojo claro'] })
+  const rojo = db.getQuestion(sq.id)!.answers.find((a) => a.label === 'Rojo')!
+  check(rojo.aliases.includes('Rojo suave') && rojo.aliases.includes('rojo claro') && !rojo.aliases.includes('rojo clarito'), 'aliases added to an existing answer are the ones the owner typed')
+  stats.setIgnored(sq.id, 'rojo clarito', true)
+}
 stats.logAnswer(sq.id, 'brillante')
 stats.setIgnored(sq.id, 'brillante', true)
 check(stats.detail(sq.id)!.unknownTotal === 0 && stats.detail(sq.id)!.unknown[0].ignored, 'ignored answers stop counting as missing')

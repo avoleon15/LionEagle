@@ -143,7 +143,9 @@ export function adminRouter(token: string): express.Router {
     return { ok: true }
   }))
   r.post('/stats/:id/add', wrap((req) =>
-    stats.addFromLog(String(req.params.id), String(req.body?.text ?? ''), { points: req.body?.points, label: req.body?.label, alias: req.body?.alias === true }),
+    stats.addFromLog(String(req.params.id), String(req.body?.text ?? ''), {
+      points: req.body?.points, label: req.body?.label, aliases: req.body?.aliases, alias: req.body?.alias === true, includeTyped: req.body?.includeTyped !== false,
+    }),
   ))
   r.delete('/stats/:id', wrap((req) => {
     stats.resetStats(String(req.params.id))

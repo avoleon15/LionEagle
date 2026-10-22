@@ -182,19 +182,38 @@ export function setIgnored(id: string, key: string, ignored: boolean): void {
   handle().prepare('UPDATE answer_log SET ignored = ? WHERE question_id = ? AND key = ?').run(ignored ? 1 : 0, id, key)
 }
 
-/** Adds something players typed as a new answer (or as another way to write an existing one). */
-export function addFromLog(id: string, text: string, opts: { points?: number; label?: string; alias?: boolean }): SaveResult {
+/** Collapses spaces; the same way every typed answer is cleaned. */
+const tidy = (s: unknown) => String(s ?? '').replace(/\s+/g, ' ').trim()
+
+/**
+ * Adds something players typed to a question. As a new answer the owner picks its name (`label`), the other ways to
+ * write it (`aliases`) and its tier (`points`); what the players typed is also accepted unless `includeTyped` is false.
+ * As an alias (`alias`) the owner picks the existing answer (`label`) and the spellings to add (the typed text by default).
+ */
+export function addFromLog(
+  id: string,
+  text: string,
+  opts: { points?: number; label?: string; aliases?: string[]; alias?: boolean; includeTyped?: boolean },
+): SaveResult {
   const q = getQuestion(id)
   if (!q) throw new InputError('No existe esa pregunta.')
-  const clean = String(text ?? '').replace(/\s+/g, ' ').trim()
+  const clean = tidy(text)
   if (!clean) throw new InputError('Falta el texto.')
+  const extra = (Array.isArray(opts.aliases) ? opts.aliases : []).map(tidy).filter(Boolean)
   const answers = q.answers.map((a) => ({ label: a.label, aliases: [...a.aliases], points: a.points }))
+  const addTo = (list: string[], label: string, more: string[]) => {
+    const seen = new Set([label, ...list].map((x) => x.toLowerCase()))
+    for (const m of more) if (!seen.has(m.toLowerCase())) { list.push(m); seen.add(m.toLowerCase()) }
+  }
   if (opts.alias) {
     const target = answers.find((a) => a.label === opts.label)
     if (!target) throw new InputError('No existe esa respuesta para agregarle el alias.')
-    target.aliases.push(clean)
+    addTo(target.aliases, target.label, extra.length > 0 ? extra : [clean])
   } else {
-    answers.push({ label: String(opts.label ?? clean).trim() || clean, aliases: opts.label && opts.label !== clean ? [clean] : [], points: Number(opts.points) })
+    const label = tidy(opts.label) || clean
+    const aliases: string[] = []
+    addTo(aliases, label, [...extra, ...(opts.includeTyped === false ? [] : [clean])])
+    answers.push({ label, aliases, points: Number(opts.points) })
   }
   // saveQuestion quietly turns a question that no longer passes the checks into a draft. For a question that is
   // live that would pull it out of the games without anyone noticing, so refuse the change instead.
