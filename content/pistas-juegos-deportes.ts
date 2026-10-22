@@ -1,7 +1,6 @@
 // Pistas (una línea bajo la pregunta). Mapa de id de pregunta a texto.
 export default {
   'clash-royale-cartas': 'Hay tropas, hechizos y estructuras; no solo piensas en guerreros con espada.',
-  'clash-royale-legendarias': 'Hay magos, brujas y bandidos, y también criaturas que vuelan o que van por tierra.',
   'clash-royale-epicas': 'Mezcla tropas pesadas con hechizos y otras cartas de apoyo.',
   'clash-royale-raras': 'Las hay de ataque, de defensa y de apoyo; piensa también en máquinas y en cosas que vuelan.',
   'clash-royale-comunes': 'Son las que más aparecen al abrir cofres: tropas baratas, grupos y algún hechizo pequeño.',
