@@ -228,7 +228,7 @@ function Table({ players, scores, me, gained }: { players: PlayerView[]; scores:
           <li key={r.p.id} className={r.p.id === me ? 'me' : ''}>
             <span className={`place p${place}`}>{place}</span>
             <Avatar a={r.p.avatar} size={22} />
-            <span className="who">{r.p.id === me ? `${r.p.nick} (tú)` : r.p.nick}</span>
+            <span className="who">{r.p.nick}</span>
             {gained && <span className={`gain ${tierClass(gained[r.p.id] ?? 0)}`}>+{gained[r.p.id] ?? 0}</span>}
             <b className="score">{r.s}</b>
           </li>
@@ -247,8 +247,6 @@ function Podium({ players, scores, me }: { players: PlayerView[]; scores: Record
       {steps.map((r) => (
         <div key={r.p.id} className={`step s${r.k + 1}${r.p.id === me ? ' me' : ''}`}>
           <Avatar a={r.p.avatar} size={r.k === 0 ? 56 : 44} />
-          <span className="pname">{r.p.nick}</span>
-          <b className="pscore">{r.s}</b>
           <span className={`block place p${r.place}`}>{r.place}</span>
         </div>
       ))}
@@ -280,6 +278,10 @@ function Reveal({ room, game, me }: { room: RoomState; game: GameView; me: strin
 function Final({ room, game, me, onLeave }: Props) {
   const [error, setError] = useState('')
   const [details, setDetails] = useState(false)
+  const detailsRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (details) detailsRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [details])
   const isHost = room.hostId === me
   const ranked = [...room.players].sort((a, b) => (game.scores[b.id] ?? 0) - (game.scores[a.id] ?? 0))
   const myPlace = ranked.findIndex((p) => (game.scores[p.id] ?? 0) === (game.scores[me] ?? 0)) + 1
@@ -288,44 +290,49 @@ function Final({ room, game, me, onLeave }: Props) {
   }, [])
   return (
     <section className="box final">
-      <p className="kicker">Resultado final</p>
-      <h2 className="prompt">{myPlace === 1 ? '¡Ganaste!' : `Quedaste en el lugar ${myPlace} de ${ranked.length}`}</h2>
-      <Podium players={room.players} scores={game.scores} me={me} />
-      <p className="kicker">Tabla completa</p>
-      <Table players={room.players} scores={game.scores} me={me} />
-      {error && <p className="error">{error}</p>}
-      <button onClick={() => setDetails((d) => !d)}>{details ? 'Ocultar mis resultados' : 'Ver mis resultados'}</button>
-      {details && (
-        <div className="details">
-          {(game.history ?? []).map((round, i) => (
-            <div key={i} className="round-card">
-              <p className="rq">
-                <b>{i + 1}.</b> {splitPrompt(round.prompt).text}
-              </p>
-              <ul>
-                {[...round.results]
-                  .filter((r) => r.playerId === me)
-                  .map((r) => (
-                    <li key={r.playerId} className={(r.playerId === me ? 'me ' : '') + tierClass(r.points)}>
-                      <span className="what">{r.answer ?? '—'}</span>
-                      {r.points > 0 && <small className="rarity">{tierLabel(r.points)}</small>}
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
-      {isHost ? (
-        <button className="primary" onClick={() => socket.emit('game:reset', (res) => !res.ok && setError(res.error))}>
-          Volver a la sala
+      <div className="final-scroll">
+        <p className="kicker">Resultado final</p>
+        <h2 className="prompt">{myPlace === 1 ? '¡Ganaste!' : `Quedaste en el lugar ${myPlace} de ${ranked.length}`}</h2>
+        <Podium players={room.players} scores={game.scores} me={me} />
+        <p className="kicker">Tabla completa</p>
+        <Table players={room.players} scores={game.scores} me={me} />
+        {details && (
+          <div className="details" ref={detailsRef}>
+            {(game.history ?? []).map((round, i) => (
+              <div key={i} className="round-card">
+                <p className="rq">
+                  <b>{i + 1}.</b> {splitPrompt(round.prompt).text}
+                </p>
+                <ul>
+                  {[...round.results]
+                    .filter((r) => r.playerId === me)
+                    .map((r) => (
+                      <li key={r.playerId} className={(r.playerId === me ? 'me ' : '') + tierClass(r.points)}>
+                        <span className="what">{r.answer ?? '—'}</span>
+                        {r.points > 0 && <small className="rarity">{tierLabel(r.points)}</small>}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* the buttons stay at the bottom of the box while the podium and the table scroll above them */}
+      <div className="final-actions">
+        {error && <p className="error">{error}</p>}
+        <button onClick={() => setDetails((d) => !d)}>{details ? 'Ocultar mis resultados' : 'Ver mis resultados'}</button>
+        {isHost ? (
+          <button className="primary" onClick={() => socket.emit('game:reset', (res) => !res.ok && setError(res.error))}>
+            Volver a la sala
+          </button>
+        ) : (
+          <p className="hint">Esperando al host…</p>
+        )}
+        <button className="link" onClick={onLeave}>
+          Salir de la sala
         </button>
-      ) : (
-        <p className="hint">Esperando al host…</p>
-      )}
-      <button className="link" onClick={onLeave}>
-        Salir de la sala
-      </button>
+      </div>
     </section>
   )
 }

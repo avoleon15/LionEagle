@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { MAX_PLAYERS, QUESTIONS_PER_GAME, type RoomState } from '../../shared/protocol'
 import { Avatar } from './Avatar'
 import { groupCategories } from './categories'
+import { softBreaks } from './nickname'
 import { SuggestBox } from './SuggestBox'
 import { socket } from './socket'
 
@@ -92,7 +93,7 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
               <li key={p.id} className={'slot' + (p.connected ? '' : ' away') + (p.id === me ? ' me' : '')}>
                 <span className="name">
                   {p.id === room.hostId && <span className="crown" title="Host">♛ </span>}
-                  {p.nick}
+                  {softBreaks(p.nick)}
                 </span>
                 <Avatar a={p.avatar} size={44} />
                 {!p.connected && <span className="off">sin conexión</span>}

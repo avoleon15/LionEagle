@@ -283,7 +283,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .reveal .mine { justify-content: space-between; }
 
 /* final: everybody's answers */
-.final > button:not(.primary):not(.link) { align-self: center; }
+.final-scroll > button:not(.primary):not(.link) { align-self: center; }
 .details { display: flex; flex-direction: column; gap: 10px; text-align: left; max-height: 42dvh; overflow: auto; padding-right: 4px; }
 .round-card .rq { margin: 0 0 4px; font-size: 0.9rem; color: var(--muted); }
 .round-card ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -302,7 +302,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .app .gbtn.some { background: #4a4a2a; color: var(--text); border-style: dashed; border-color: var(--gold); }
 .app .gbtn:disabled { opacity: 1; cursor: default; }
 .group .cats { padding-left: 12px; }
-.final > *, .reveal > * { flex-shrink: 0; }
+.final > *, .final-scroll > *, .reveal > * { flex-shrink: 0; }
 
 .round-card .rarity { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
 .round-card li.t60 .rarity { color: var(--green); } .round-card li.t80 .rarity { color: var(--blue); } .round-card li.t100 .rarity { color: var(--gold); }
@@ -417,9 +417,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .final { max-height: calc(100dvh - 32px); overflow-y: auto; }
 .podium { display: flex; justify-content: center; align-items: flex-end; gap: 8px; padding-top: 4px; }
 .podium .step { flex: 1; min-width: 0; max-width: 118px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.podium .pname { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
-.podium .pscore { font-family: var(--pixel); font-size: 1.1rem; }
-.podium .step.me .pname { color: var(--gold); }
+.podium .step.me .block { outline: 3px solid #fff2a8; outline-offset: 1px; }
 .podium .block { width: 100%; height: auto; display: grid; place-items: start center; padding-top: 6px; font-size: 1.4rem; border-width: 3px; box-shadow: 3px 3px 0 var(--ink); }
 .podium .s1 .block { min-height: 86px; } .podium .s2 .block { min-height: 62px; } .podium .s3 .block { min-height: 46px; }
 .final .kicker { margin: 4px 0 -4px; text-align: left; }
@@ -436,7 +434,13 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .app .sbtn.on { background: #3a3a1a; color: var(--gold); border-color: var(--gold); }
 .app .sbtn:disabled { opacity: 1; cursor: default; }
 .box-mark { font-size: 1rem; line-height: 1; }
-.stage > .box.final { max-height: calc(100dvh - 134px); }
+.stage > .box.final { max-height: calc(100dvh - 134px); padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+/* the podium and the table scroll in here; the buttons live in .final-actions and never scroll away or poke out of the box */
+.final-scroll { flex: 1; min-height: 0; margin: 6px 6px 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 18px 10px; display: flex; flex-direction: column; gap: 12px; text-align: center; }
+.final-actions { flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 18px 14px; border-top: 3px solid var(--panel-2); text-align: center; margin: 0 6px 6px; }
+.final-actions > button:not(.link) { min-width: 220px; }
+.final-actions .hint, .final-actions .error { margin: 0; }
+.final .details { max-height: none; overflow: visible; padding-right: 0; }
 .final .table li { padding: 3px 8px; }
 .final .prompt { font-size: 1.6rem; }
 
