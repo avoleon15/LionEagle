@@ -1,10 +1,13 @@
 // Run with: npm run test -w server
 // Checks every question's answer list and the matching rules.
 import { MIN_TOKEN_LENGTH, weakTokenWarning } from './admin'
+import * as backup from './backup'
 import * as db from './db'
 import { buildIndex, match, suggest, validateQuestion } from './matching'
 import { webhookRequest } from './notify'
-import { readdirSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join as joinPath } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { selectQuestions } from './selection'
 import * as stats from './stats'
@@ -308,6 +311,8 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   const nt = webhookRequest('https://ntfy.sh/mi-tema', 'hola')
   check(nt.body === 'hola' && nt.headers.Title === 'Nueva sugerencia', 'notify: ntfy gets plain text with a title')
   check(JSON.parse(webhookRequest('https://example.com/hook', 'hola').body).text === 'hola', 'notify: anything else gets {text}')
+  check(JSON.stringify(JSON.parse(webhookRequest('https://discord.com/api/webhooks/1/x', '@everyone').body).allowed_mentions) === '{"parse":[]}', 'notify: Discord messages cannot mention anybody')
+  check(JSON.parse(webhookRequest('https://hooks.slack.com/services/a/b/c', 'hola <!channel> & <@U1>').body).text === 'hola &lt;!channel&gt; &amp; &lt;@U1&gt;', 'notify: Slack messages cannot ping (<, > and & are escaped)')
 }
 
 // ---- a part of a name: it does not score, it suggests ----
@@ -465,6 +470,30 @@ for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content 
   check(db.getQuestion(withHint.question.id)!.hint === 'Una pista de prueba larga.', 'export: importing the backup restores the hint')
   db.deleteQuestion(withHint.question.id)
   check(weakTokenWarning('1234') !== null && weakTokenWarning('x'.repeat(MIN_TOKEN_LENGTH)) === null, 'admin token: a short one is warned about, a long one is not')
+}
+
+{
+  // automatic copies of the questions
+  const dir = mkdtempSync(joinPath(tmpdir(), 'altus-backups-'))
+  const t0 = new Date('2026-10-22T12:00:00Z')
+  const keep = db.saveQuestion({ category: 'Prueba copia', prompt: 'Nombra algo que se pueda recuperar.', hint: 'Una pista de copia.', answers: [{ label: 'Algo', points: 10 }] })
+  const name = backup.snapshot('borrar', dir, t0)!
+  const info = backup.listBackups(dir)
+  check(name !== null && info.length === 1 && info[0].reason === 'borrar' && info[0].questions === db.exportQuestions().length, 'backup: a copy is written and lists how many questions it holds')
+  check(backup.snapshot('borrar', dir, new Date(t0.getTime() + 30_000)) === null, 'backup: a second copy for the same reason within a minute is skipped')
+  check(backup.snapshot('importar', dir, new Date(t0.getTime() + 30_000)) !== null, 'backup: another reason is not skipped')
+  for (let i = 1; i <= 12; i++) backup.snapshot('borrar', dir, new Date(t0.getTime() + i * 120_000))
+  check(backup.listBackups(dir).filter((b) => b.reason === 'borrar').length === 10, 'backup: only the newest 10 copies of each reason are kept')
+  check(['../x.json', 'x.json', '2026-10-22T12-00-00-borrar.json/../..'].every((n) => thrown(() => backup.readBackup(n, dir))), 'backup: names that are not ours are refused')
+  const first = backup.snapshot('probar', dir, new Date(t0.getTime() + 99 * 120_000))!
+  db.deleteQuestion(keep.question.id)
+  check(db.getQuestion(keep.question.id) === null, 'backup: the question is gone before restoring')
+  backup.restore(first, dir)
+  const back = db.getQuestion(keep.question.id)
+  check(back !== null && back.hint === 'Una pista de copia.' && back.status === 'draft', 'backup: restoring a copy brings the question back, with its hint')
+  check(backup.listBackups(dir).some((b) => b.reason === 'antes-de-restaurar'), 'backup: restoring takes a copy of how things were first')
+  db.deleteQuestion(keep.question.id)
+  rmSync(dir, { recursive: true, force: true })
 }
 
 process.exit(failed ? 1 : 0)

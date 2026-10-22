@@ -11,8 +11,9 @@ export interface WebhookRequest {
 
 /** What to POST to `url` so that the message shows up as text on that service. */
 export function webhookRequest(url: string, text: string): WebhookRequest {
-  if (/discord(app)?\.com\/api\/webhooks\//.test(url)) return { body: JSON.stringify({ content: text.slice(0, 1900) }), headers: { 'Content-Type': 'application/json' } }
-  if (/hooks\.slack\.com\//.test(url)) return { body: JSON.stringify({ text }), headers: { 'Content-Type': 'application/json' } }
+  // What a player typed must never ping people: Discord gets no mentions at all, Slack gets <, > and & escaped (its @channel is <!channel>).
+  if (/discord(app)?\.com\/api\/webhooks\//.test(url)) return { body: JSON.stringify({ content: text.slice(0, 1900), allowed_mentions: { parse: [] } }), headers: { 'Content-Type': 'application/json' } }
+  if (/hooks\.slack\.com\//.test(url)) return { body: JSON.stringify({ text: text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }), headers: { 'Content-Type': 'application/json' } }
   if (/(^|\/\/)ntfy\.[a-z.]+\//.test(url)) return { body: text, headers: { 'Content-Type': 'text/plain; charset=utf-8', Title: 'Nueva sugerencia', Tags: 'speech_balloon' } }
   return { body: JSON.stringify({ text }), headers: { 'Content-Type': 'application/json' } }
 }

@@ -44,6 +44,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 export const DATA_DIR = join(here, '../data')
 
 let db: DatabaseSync
+let dbPath = ':memory:'
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS questions (
@@ -86,6 +87,9 @@ CREATE TABLE IF NOT EXISTS question_stats (
 );
 `
 
+/** Where the automatic backups go: a folder next to the database file (so it lives in the same volume). Null for an in-memory database. */
+export const backupDir = (): string | null => (dbPath === ':memory:' ? null : join(dirname(dbPath), 'backups'))
+
 /** The open database, for the stats module. */
 export const handle = () => db
 
@@ -93,6 +97,7 @@ export const handle = () => db
 export function init(path = process.env.DB_PATH ?? join(DATA_DIR, 'lion-eagle.db')) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
   db = new DatabaseSync(path)
+  dbPath = path
   // WAL lets a second process (the import script) write while the server is running; the timeout makes
   // a briefly locked database wait instead of failing with "database is locked".
   db.exec('PRAGMA busy_timeout = 5000')

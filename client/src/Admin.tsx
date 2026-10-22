@@ -20,7 +20,9 @@ interface Question {
 /** What the question list carries; the full question (with its answers) is fetched when it is opened. */
 interface Summary { id: string; category: string; prompt: string; status: Question['status']; source: Question['source']; answerCount: number; updatedAt: number; problems: string[] }
 interface Suggestion { id: number; prompt: string; category: string; answers: string; nick: string; status: string; createdAt: number; questionId: string | null }
-interface Counts { questions: Record<string, number>; newSuggestions: number }
+interface Counts { questions: Record<string, number>; newSuggestions: number; ip?: string; hops?: number }
+interface BackupRow { name: string; createdAt: number; reason: string; size: number; questions: number }
+const BACKUP_REASON: Record<string, string> = { borrar: 'Antes de borrar una pregunta', importar: 'Antes de importar', diaria: 'Copia diaria', 'antes-de-restaurar': 'Antes de restaurar otra copia' }
 interface OverviewRow { id: string; prompt: string; category: string; status: string; asked: number; answered: number; validTotal: number; unknownTotal: number; topUnknown: { text: string; count: number }[]; mismatches: number }
 interface AnswerStat { label: string; points: number; count: number; share: number; suggested: number | null }
 interface LoggedAnswer { key: string; text: string; count: number; lastAt: number; ignored: boolean }
@@ -322,6 +324,57 @@ const EXAMPLE = `[
   }
 ]`
 
+/** The automatic copies of the questions: taken before deleting or importing and once a day. Restoring puts a copy's questions back. */
+function Backups({ token, refresh }: { token: string; refresh: () => void }) {
+  const [rows, setRows] = useState<BackupRow[] | null>(null)
+  const [msg, setMsg] = useState('')
+  const load = useCallback(async () => {
+    try { setRows((await call<{ backups: BackupRow[] }>(token, '/backups')).backups) } catch (e) { setMsg((e as Error).message) }
+  }, [token])
+  useEffect(() => { void load() }, [load])
+
+  const download = async (b: BackupRow) => {
+    const data = await call<unknown>(token, `/backups/${b.name}`)
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = b.name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+  const restore = async (b: BackupRow) => {
+    const when = new Date(b.createdAt).toLocaleString('es')
+    if (!window.confirm(`¿Restaurar la copia del ${when}?\n\nLas ${b.questions} preguntas de esa copia vuelven como estaban (lo borrado regresa y lo editado vuelve a esa versión). Antes se guarda una copia de cómo está todo ahora.`)) return
+    try {
+      const r = await call<{ created: number; updated: number }>(token, `/backups/${b.name}/restore`, 'POST', {})
+      setMsg(`Copia restaurada: ${r.created} preguntas devueltas y ${r.updated} puestas como estaban.`)
+      void load(); refresh()
+    } catch (e) {
+      setMsg((e as Error).message)
+    }
+  }
+  return (
+    <>
+      <h2>Copias automáticas</h2>
+      <p className="hint">
+        El servidor guarda solo una copia de las preguntas antes de borrar una, antes de importar y una vez al día (las últimas 10 de cada tipo). No incluyen
+        lo que escribieron los jugadores. Una copia descargada se puede volver a importar abajo.
+      </p>
+      {msg && <div className="msg ok"><p>{msg}</p></div>}
+      <ul className="qlist">
+        {rows?.map((b) => (
+          <li key={b.name} style={{ cursor: 'default' }}>
+            <span className="q-prompt">{BACKUP_REASON[b.reason] ?? b.reason}<small>{new Date(b.createdAt).toLocaleString('es')} · {b.questions} preguntas · {Math.max(1, Math.round(b.size / 1024))} KB</small></span>
+            <button onClick={() => void download(b)}>Descargar</button>
+            <button className="danger" onClick={() => void restore(b)}>Restaurar</button>
+          </li>
+        ))}
+        {rows && rows.length === 0 && <li className="empty">Todavía no hay copias. La primera se guarda en cuanto arranca el servidor o antes del primer borrado.</li>}
+      </ul>
+    </>
+  )
+}
+
 function ImportExport({ token, refresh }: { token: string; refresh: () => void }) {
   const [text, setText] = useState('')
   const [publish, setPublish] = useState(true)
@@ -353,6 +406,7 @@ function ImportExport({ token, refresh }: { token: string; refresh: () => void }
       <h2>Exportar</h2>
       <p className="hint">Descarga todas las preguntas (copia de seguridad).</p>
       <button onClick={doExport}>Descargar JSON</button>
+      <Backups token={token} refresh={refresh} />
       <h2>Importar</h2>
       <p className="hint">Pega una lista de preguntas. Si una pregunta tiene el mismo <code>id</code> que una existente, la reemplaza. Formato:</p>
       <pre>{EXAMPLE}</pre>
@@ -648,6 +702,13 @@ export function Admin() {
       )}
       {tab === 'importar' && <ImportExport token={token} refresh={refresh} />}
       </div>
+      {counts?.ip !== undefined && (
+        <p className="hint footer">
+          Tu IP según el servidor: <code>{counts.ip || 'desconocida'}</code>{counts.hops ? ` (${counts.hops} ${counts.hops === 1 ? 'salto' : 'saltos'} de proxy)` : ''}.
+          Debe ser tu IP pública (búscala como “cuál es mi ip”). Si sale una dirección privada (10.x, 100.64.x, 172.16–31.x), todos los visitantes
+          parecerían la misma persona y el bloqueo de intentos de acceso se compartiría con ellos.
+        </p>
+      )}
     </main>
   )
 }
