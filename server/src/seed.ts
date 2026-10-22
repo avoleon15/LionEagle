@@ -12,6 +12,7 @@ const contentDir = join(dirname(fileURLToPath(import.meta.url)), '../../content'
  * questions is never touched, so edits made in the admin survive every restart.
  */
 export async function seedContent() {
+  if (process.env.LE_NO_SEED) return // the end-to-end test plays with the built-in samples
   const real = db.handle().prepare("SELECT COUNT(*) AS n FROM questions WHERE source != 'sample'").get() as { n: number }
   if (real.n > 0 || !existsSync(contentDir)) return
   const files = readdirSync(contentDir).filter((f) => f.endsWith('.ts'))

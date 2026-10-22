@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url'
 import express from 'express'
 import { Server } from 'socket.io'
 import type { Ack, AnswerResult, ClientToServer, JoinResult, ServerToClient } from '../../shared/protocol'
-import { adminRouter, adminToken } from './admin'
+import { adminRouter, adminToken, weakTokenWarning } from './admin'
+import { startDailyBackups } from './backup'
 import * as db from './db'
 import { GameError } from './game'
 import { RateLimiter } from './ratelimit'
@@ -19,13 +20,39 @@ const clientDist = pathJoin(here, '../../client/dist')
 
 db.init()
 await seedContent()
+startDailyBackups()
 const admin = adminToken()
+const weak = weakTokenWarning(admin.token)
+if (weak) console.warn(weak)
 
 const app = express()
 // Only trust X-Forwarded-For when the server really sits behind a proxy (set TRUST_PROXY=1 there).
 // Otherwise anybody could fake their address with that header and dodge the rate limits.
 const trustProxy = process.env.TRUST_PROXY
 if (trustProxy) app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy)
+app.disable('x-powered-by')
+// Browser protections. The page loads its scripts and images from itself, its two fonts from Google Fonts and talks to the
+// same server (HTTP and the game's websocket); inline styles are allowed because React sets some on elements.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob:",
+  "connect-src 'self' ws: wss:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ')
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', CSP)
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('Referrer-Policy', 'same-origin')
+  if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000')
+  next()
+})
 const http = createServer(app)
 const io = new Server<ClientToServer, ServerToClient>(http)
 
@@ -59,6 +86,19 @@ if (existsSync(clientDist)) {
   app.use(express.static(clientDist))
   app.get('*', (_req, res) => res.sendFile(pathJoin(clientDist, 'index.html')))
 }
+
+// Whatever fails while a request is read (a body that is not JSON, one that is too big) answers with a short JSON
+// message: Express's own error page would show the file paths of the server.
+app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) return next(err)
+  const type = (err as { type?: string }).type
+  if (type === 'entity.too.large') res.status(413).json({ error: 'El texto es demasiado grande.' })
+  else if (type === 'entity.parse.failed') res.status(400).json({ error: 'Eso no es JSON válido.' })
+  else {
+    console.error(err)
+    res.status(500).json({ error: 'Error inesperado.' })
+  }
+})
 
 const broadcast = (room: { code: string }) => {
   const state = rooms.getRoom(room.code)
@@ -170,6 +210,6 @@ http.listen(PORT, () => {
   console.log(`Altus server on :${PORT}`)
   // The token is shown only where a person is looking (a terminal), never in hosting logs.
   if (admin.source === 'env') console.log('Admin: /admin (token en la variable ADMIN_TOKEN)')
-  else if (process.stdout.isTTY || admin.source === 'generated') console.log(`Admin: /admin  (token: ${admin.token})`)
-  else console.log('Admin: /admin (token en server/data/admin-token.txt)')
+  else if (process.stdout.isTTY) console.log(`Admin: /admin  (token: ${admin.token})`)
+  else console.log(`Admin: /admin (el token está en ${pathJoin(db.DATA_DIR, 'admin-token.txt')}; en un servidor sin acceso a archivos, define la variable ADMIN_TOKEN)`)
 })

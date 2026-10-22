@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import express, { type NextFunction, type Request, type Response } from 'express'
+import * as backup from './backup'
 import * as db from './db'
 import * as stats from './stats'
 import { buildIndex, keys, match, validateQuestion } from './matching'
@@ -18,6 +19,15 @@ export function adminToken(): { token: string; source: TokenSource } {
   const token = randomBytes(18).toString('base64url')
   writeFileSync(file, token + '\n', { mode: 0o600 })
   return { token, source: 'generated' }
+}
+
+/** Shortest admin token that is not worth warning about (the generated one has 24). */
+export const MIN_TOKEN_LENGTH = 24
+
+/** A warning for the log when the token is short enough to be guessed, otherwise null. */
+export function weakTokenWarning(token: string): string | null {
+  if (token.length >= MIN_TOKEN_LENGTH) return null
+  return `AVISO: el token de admin tiene solo ${token.length} caracteres. Usa uno de ${MIN_TOKEN_LENGTH} o más (por ejemplo, el que da: openssl rand -base64 24).`
 }
 
 const same = (a: string, b: string) => {
@@ -63,7 +73,8 @@ export function adminRouter(token: string): express.Router {
     }
   }
 
-  r.get('/ping', wrap(() => ({ ok: true, ...db.counts() })))
+  // `ip` and `hops` let the owner check that the server sees real visitor addresses behind the host's proxy (see the admin footer).
+  r.get('/ping', wrap((req) => ({ ok: true, ip: req.ip ?? '', hops: String(req.headers['x-forwarded-for'] ?? '').split(',').filter((x) => x.trim()).length, ...db.counts() })))
 
   // Quality checks (building the answer index of every question) are the expensive part of the list, so
   // their result is remembered until the question changes.
@@ -102,7 +113,10 @@ export function adminRouter(token: string): express.Router {
     if (!db.getQuestion(String(req.params.id))) throw new db.InputError('No existe esa pregunta.')
     return db.saveQuestion({ ...req.body, id: String(req.params.id) })
   }))
-  r.delete('/questions/:id', wrap((req) => ({ deleted: db.deleteQuestion(String(req.params.id)) })))
+  r.delete('/questions/:id', wrap((req) => {
+    backup.snapshot('borrar')
+    return { deleted: db.deleteQuestion(String(req.params.id)) }
+  }))
   r.post('/questions/:id/status', wrap((req) => {
     const status = String(req.body?.status)
     if (!['draft', 'published', 'archived'].includes(status)) throw new db.InputError('Estado inválido.')
@@ -126,9 +140,14 @@ export function adminRouter(token: string): express.Router {
   r.post('/import', wrap((req) => {
     const list = Array.isArray(req.body) ? req.body : req.body?.questions
     if (!Array.isArray(list)) throw new db.InputError('Se esperaba una lista de preguntas.')
+    backup.snapshot('importar')
     return db.importQuestions(list, req.body?.publish !== false)
   }))
-  r.get('/export', wrap(() => ({ questions: db.listQuestions().map(({ id, category, prompt, status, source, notes, answers }) => ({ id, category, prompt, status, source, notes, answers })) })))
+  r.get('/export', wrap(() => ({ questions: db.exportQuestions() })))
+  // Automatic copies of the questions (see backup.ts)
+  r.get('/backups', wrap(() => ({ backups: backup.listBackups() })))
+  r.get('/backups/:name', wrap((req) => backup.readBackup(String(req.params.name))))
+  r.post('/backups/:name/restore', wrap((req) => backup.restore(String(req.params.name))))
   r.post('/publish-ready', wrap(() => db.publishReady()))
   r.post('/archive-samples', wrap(() => ({ archived: db.archiveSamples() })))
 
@@ -143,7 +162,9 @@ export function adminRouter(token: string): express.Router {
     return { ok: true }
   }))
   r.post('/stats/:id/add', wrap((req) =>
-    stats.addFromLog(String(req.params.id), String(req.body?.text ?? ''), { points: req.body?.points, label: req.body?.label, alias: req.body?.alias === true }),
+    stats.addFromLog(String(req.params.id), String(req.body?.text ?? ''), {
+      points: req.body?.points, label: req.body?.label, aliases: req.body?.aliases, alias: req.body?.alias === true, includeTyped: req.body?.includeTyped !== false,
+    }),
   ))
   r.delete('/stats/:id', wrap((req) => {
     stats.resetStats(String(req.params.id))

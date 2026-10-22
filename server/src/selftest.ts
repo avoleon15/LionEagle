@@ -1,9 +1,13 @@
 // Run with: npm run test -w server
 // Checks every question's answer list and the matching rules.
+import { MIN_TOKEN_LENGTH, weakTokenWarning } from './admin'
+import * as backup from './backup'
 import * as db from './db'
 import { buildIndex, match, suggest, validateQuestion } from './matching'
 import { webhookRequest } from './notify'
-import { readdirSync } from 'node:fs'
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join as joinPath } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { selectQuestions } from './selection'
 import * as stats from './stats'
@@ -162,6 +166,23 @@ check(thrown(() => stats.addFromLog(sq.id, 'x', { alias: true, label: 'No existe
   check(!stats.addFromLog(sq.id, 'azulado', { alias: true, label: 'Rojo' }).demoted && db.getQuestion(sq.id)!.status === 'draft', 'alias guard: a draft is edited normally')
   db.setStatus(sq.id, 'published')
 }
+{
+  // the owner picks the name and the aliases of what is added; what players typed is accepted too unless turned off
+  stats.logAnswer(sq.id, 'rosadito')
+  stats.addFromLog(sq.id, 'rosadito', { points: 80, label: 'Rosa', aliases: ['Rosado', ' rosa  claro '] })
+  const rosa = db.getQuestion(sq.id)!.answers.find((a) => a.label === 'Rosa')!
+  check(rosa.points === 80 && rosa.aliases.join('|') === 'Rosado|rosa claro|rosadito', 'owner-chosen name and aliases are saved, with the typed text added')
+  stats.logAnswer(sq.id, 'violeta claro')
+  stats.addFromLog(sq.id, 'violeta claro', { points: 60, label: 'Violeta', includeTyped: false })
+  const vio = db.getQuestion(sq.id)!.answers.find((a) => a.label === 'Violeta')!
+  check(vio.aliases.length === 0, 'the typed text can be left out of the aliases')
+  stats.setIgnored(sq.id, 'violeta claro', true)
+  stats.logAnswer(sq.id, 'rojo clarito')
+  stats.addFromLog(sq.id, 'rojo clarito', { alias: true, label: 'Rojo', aliases: ['Rojo suave', 'rojo claro'] })
+  const rojo = db.getQuestion(sq.id)!.answers.find((a) => a.label === 'Rojo')!
+  check(rojo.aliases.includes('Rojo suave') && rojo.aliases.includes('rojo claro') && !rojo.aliases.includes('rojo clarito'), 'aliases added to an existing answer are the ones the owner typed')
+  stats.setIgnored(sq.id, 'rojo clarito', true)
+}
 stats.logAnswer(sq.id, 'brillante')
 stats.setIgnored(sq.id, 'brillante', true)
 check(stats.detail(sq.id)!.unknownTotal === 0 && stats.detail(sq.id)!.unknown[0].ignored, 'ignored answers stop counting as missing')
@@ -290,6 +311,8 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   const nt = webhookRequest('https://ntfy.sh/mi-tema', 'hola')
   check(nt.body === 'hola' && nt.headers.Title === 'Nueva sugerencia', 'notify: ntfy gets plain text with a title')
   check(JSON.parse(webhookRequest('https://example.com/hook', 'hola').body).text === 'hola', 'notify: anything else gets {text}')
+  check(JSON.stringify(JSON.parse(webhookRequest('https://discord.com/api/webhooks/1/x', '@everyone').body).allowed_mentions) === '{"parse":[]}', 'notify: Discord messages cannot mention anybody')
+  check(JSON.parse(webhookRequest('https://hooks.slack.com/services/a/b/c', 'hola <!channel> & <@U1>').body).text === 'hola &lt;!channel&gt; &amp; &lt;@U1&gt;', 'notify: Slack messages cannot ping (<, > and & are escaped)')
 }
 
 // ---- a part of a name: it does not score, it suggests ----
@@ -435,6 +458,42 @@ for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content 
     }
   }
   check(leaks.length === 0, `hints: none contains a listed answer${leaks.length ? ' (' + leaks.slice(0, 5).join(', ') + ')' : ''}`)
+}
+
+{
+  // the admin backup keeps hints, and importing it back restores them
+  const withHint = db.saveQuestion({ category: 'Prueba export', prompt: 'Nombra una pregunta con pista.', hint: 'Una pista de prueba larga.', answers: [{ label: 'A', points: 10 }] })
+  const backup = db.exportQuestions().find((x) => x.id === withHint.question.id)!
+  check(backup.hint === 'Una pista de prueba larga.', 'export: the backup carries the hint')
+  db.setHint(withHint.question.id, '')
+  db.importQuestions([backup], false)
+  check(db.getQuestion(withHint.question.id)!.hint === 'Una pista de prueba larga.', 'export: importing the backup restores the hint')
+  db.deleteQuestion(withHint.question.id)
+  check(weakTokenWarning('1234') !== null && weakTokenWarning('x'.repeat(MIN_TOKEN_LENGTH)) === null, 'admin token: a short one is warned about, a long one is not')
+}
+
+{
+  // automatic copies of the questions
+  const dir = mkdtempSync(joinPath(tmpdir(), 'altus-backups-'))
+  const t0 = new Date('2026-10-22T12:00:00Z')
+  const keep = db.saveQuestion({ category: 'Prueba copia', prompt: 'Nombra algo que se pueda recuperar.', hint: 'Una pista de copia.', answers: [{ label: 'Algo', points: 10 }] })
+  const name = backup.snapshot('borrar', dir, t0)!
+  const info = backup.listBackups(dir)
+  check(name !== null && info.length === 1 && info[0].reason === 'borrar' && info[0].questions === db.exportQuestions().length, 'backup: a copy is written and lists how many questions it holds')
+  check(backup.snapshot('borrar', dir, new Date(t0.getTime() + 30_000)) === null, 'backup: a second copy for the same reason within a minute is skipped')
+  check(backup.snapshot('importar', dir, new Date(t0.getTime() + 30_000)) !== null, 'backup: another reason is not skipped')
+  for (let i = 1; i <= 12; i++) backup.snapshot('borrar', dir, new Date(t0.getTime() + i * 120_000))
+  check(backup.listBackups(dir).filter((b) => b.reason === 'borrar').length === 10, 'backup: only the newest 10 copies of each reason are kept')
+  check(['../x.json', 'x.json', '2026-10-22T12-00-00-borrar.json/../..'].every((n) => thrown(() => backup.readBackup(n, dir))), 'backup: names that are not ours are refused')
+  const first = backup.snapshot('probar', dir, new Date(t0.getTime() + 99 * 120_000))!
+  db.deleteQuestion(keep.question.id)
+  check(db.getQuestion(keep.question.id) === null, 'backup: the question is gone before restoring')
+  backup.restore(first, dir)
+  const back = db.getQuestion(keep.question.id)
+  check(back !== null && back.hint === 'Una pista de copia.' && back.status === 'draft', 'backup: restoring a copy brings the question back, with its hint')
+  check(backup.listBackups(dir).some((b) => b.reason === 'antes-de-restaurar'), 'backup: restoring takes a copy of how things were first')
+  db.deleteQuestion(keep.question.id)
+  rmSync(dir, { recursive: true, force: true })
 }
 
 process.exit(failed ? 1 : 0)

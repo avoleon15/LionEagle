@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TIERS, tierLabel } from '../../shared/protocol'
+import './admin.css'
 
 // Owner tool at /admin. Everything goes through /api/admin with the admin token.
 
@@ -11,6 +12,7 @@ interface Question {
   status: 'draft' | 'published' | 'archived'
   source: 'sample' | 'owner' | 'suggestion'
   notes: string
+  hint: string
   answers: Answer[]
   problems?: string[]
   updatedAt: number
@@ -18,13 +20,17 @@ interface Question {
 /** What the question list carries; the full question (with its answers) is fetched when it is opened. */
 interface Summary { id: string; category: string; prompt: string; status: Question['status']; source: Question['source']; answerCount: number; updatedAt: number; problems: string[] }
 interface Suggestion { id: number; prompt: string; category: string; answers: string; nick: string; status: string; createdAt: number; questionId: string | null }
-interface Counts { questions: Record<string, number>; newSuggestions: number }
+interface Counts { questions: Record<string, number>; newSuggestions: number; ip?: string; hops?: number }
+interface BackupRow { name: string; createdAt: number; reason: string; size: number; questions: number }
+const BACKUP_REASON: Record<string, string> = { borrar: 'Antes de borrar una pregunta', importar: 'Antes de importar', diaria: 'Copia diaria', 'antes-de-restaurar': 'Antes de restaurar otra copia' }
 interface OverviewRow { id: string; prompt: string; category: string; status: string; asked: number; answered: number; validTotal: number; unknownTotal: number; topUnknown: { text: string; count: number }[]; mismatches: number }
 interface AnswerStat { label: string; points: number; count: number; share: number; suggested: number | null }
 interface LoggedAnswer { key: string; text: string; count: number; lastAt: number; ignored: boolean }
 interface StatDetail { id: string; prompt: string; category: string; asked: number; answered: number; validTotal: number; unknownTotal: number; answers: AnswerStat[]; unknown: LoggedAnswer[]; minForSuggestions: number }
 
 const TOKEN_KEY = 'leonaguila.admin'
+/** Hints in the content files stay within this many letters; the server accepts up to 160. */
+const HINT_SOFT_LIMIT = 120
 const STATUS_LABEL = { draft: 'Borrador', published: 'Publicada', archived: 'Archivada' } as const
 const SOURCE_LABEL = { sample: 'Muestra', owner: 'Propia', suggestion: 'Sugerencia' } as const
 
@@ -62,10 +68,10 @@ function toAnswers(text: TierText): Answer[] {
 
 // ---- editor ----
 
-interface Draft { id?: string; category: string; prompt: string; notes: string; status: Question['status']; source: Question['source']; text: TierText }
+interface Draft { id?: string; category: string; prompt: string; notes: string; hint: string; status: Question['status']; source: Question['source']; text: TierText }
 
-const blank = (category = ''): Draft => ({ category, prompt: '', notes: '', status: 'draft', source: 'owner', text: toText([]) })
-const fromQuestion = (q: Question): Draft => ({ id: q.id, category: q.category, prompt: q.prompt, notes: q.notes, status: q.status, source: q.source, text: toText(q.answers) })
+const blank = (category = ''): Draft => ({ category, prompt: '', notes: '', hint: '', status: 'draft', source: 'owner', text: toText([]) })
+const fromQuestion = (q: Question): Draft => ({ id: q.id, category: q.category, prompt: q.prompt, notes: q.notes, hint: q.hint ?? '', status: q.status, source: q.source, text: toText(q.answers) })
 
 function Editor({ token, draft: initial, categories, onSaved, onCancel }: {
   token: string
@@ -92,7 +98,7 @@ function Editor({ token, draft: initial, categories, onSaved, onCancel }: {
 
   const save = async (status: Question['status']) => {
     setMsg(null)
-    const body = { category: d.category, prompt: d.prompt, notes: d.notes, source: d.source, status, answers }
+    const body = { category: d.category, prompt: d.prompt, notes: d.notes, hint: d.hint, source: d.source, status, answers }
     try {
       const r = await call<{ question: Question; problems: string[]; demoted: boolean }>(token, d.id ? `/questions/${d.id}` : '/questions', d.id ? 'PUT' : 'POST', body)
       if (r.demoted) {
@@ -121,6 +127,10 @@ function Editor({ token, draft: initial, categories, onSaved, onCancel }: {
       </label>
       <label>Pregunta
         <input value={d.prompt} onChange={(e) => setD({ ...d, prompt: e.target.value })} placeholder="Nombra un país de Norteamérica." />
+      </label>
+      <label>Pista (se muestra pequeña debajo de la pregunta)
+        <input value={d.hint} maxLength={160} onChange={(e) => setD({ ...d, hint: e.target.value })} placeholder="Piensa en: ciudades, países y ríos." />
+        <small className={d.hint.length > HINT_SOFT_LIMIT ? 'warn' : 'hint'}>{d.hint.length}/{HINT_SOFT_LIMIT}{d.hint.length > HINT_SOFT_LIMIT ? ' · una pista tan larga ocupa mucho espacio en el teléfono' : ''}. No pongas respuestas de la lista en la pista.</small>
       </label>
       <p className="hint">
         Respuestas por nivel, <b>una por línea</b>. Si una respuesta se puede escribir de otra forma, sepárala con <b>|</b>:
@@ -222,10 +232,14 @@ function Questions({ token, counts, refresh, edit, setEdit }: { token: string; c
         <button className="primary" onClick={() => setEdit(blank(category))}>+ Nueva pregunta</button>
       </div>
       {error && <p className="error">{error}</p>}
-      <p className="hint">
-        {counts?.questions.published ?? 0} publicadas · {counts?.questions.draft ?? 0} borradores · {counts?.questions.archived ?? 0} archivadas.
-        Para jugar se necesitan al menos 7 publicadas en las categorías elegidas.
-      </p>
+      <div className="tiles">
+        <div className="tile published"><b>{counts?.questions.published ?? 0}</b><span>Publicadas</span></div>
+        <div className="tile"><b>{counts?.questions.draft ?? 0}</b><span>Borradores</span></div>
+        <div className="tile"><b>{counts?.questions.archived ?? 0}</b><span>Archivadas</span></div>
+        <div className="tile suggest"><b>{counts?.newSuggestions ?? 0}</b><span>Sugerencias nuevas</span></div>
+      </div>
+      <p className="hint">Para jugar se necesitan al menos 7 publicadas en las categorías elegidas.</p>
+      <div className="actions">
       {(counts?.questions.draft ?? 0) > 0 && (
         <button onClick={async () => {
           const r = await call<{ published: number; waiting: number }>(token, '/publish-ready', 'POST', {})
@@ -240,6 +254,7 @@ function Questions({ token, counts, refresh, edit, setEdit }: { token: string; c
           void load(); refresh()
         }}>Archivar las preguntas de muestra</button>
       )}
+      </div>
       <ul className="qlist">
         {list.map((q) => (
           <li key={q.id} onClick={() => void open(q.id)}>
@@ -309,6 +324,57 @@ const EXAMPLE = `[
   }
 ]`
 
+/** The automatic copies of the questions: taken before deleting or importing and once a day. Restoring puts a copy's questions back. */
+function Backups({ token, refresh }: { token: string; refresh: () => void }) {
+  const [rows, setRows] = useState<BackupRow[] | null>(null)
+  const [msg, setMsg] = useState('')
+  const load = useCallback(async () => {
+    try { setRows((await call<{ backups: BackupRow[] }>(token, '/backups')).backups) } catch (e) { setMsg((e as Error).message) }
+  }, [token])
+  useEffect(() => { void load() }, [load])
+
+  const download = async (b: BackupRow) => {
+    const data = await call<unknown>(token, `/backups/${b.name}`)
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = b.name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+  const restore = async (b: BackupRow) => {
+    const when = new Date(b.createdAt).toLocaleString('es')
+    if (!window.confirm(`¿Restaurar la copia del ${when}?\n\nLas ${b.questions} preguntas de esa copia vuelven como estaban (lo borrado regresa y lo editado vuelve a esa versión). Antes se guarda una copia de cómo está todo ahora.`)) return
+    try {
+      const r = await call<{ created: number; updated: number }>(token, `/backups/${b.name}/restore`, 'POST', {})
+      setMsg(`Copia restaurada: ${r.created} preguntas devueltas y ${r.updated} puestas como estaban.`)
+      void load(); refresh()
+    } catch (e) {
+      setMsg((e as Error).message)
+    }
+  }
+  return (
+    <>
+      <h2>Copias automáticas</h2>
+      <p className="hint">
+        El servidor guarda solo una copia de las preguntas antes de borrar una, antes de importar y una vez al día (las últimas 10 de cada tipo). No incluyen
+        lo que escribieron los jugadores. Una copia descargada se puede volver a importar abajo.
+      </p>
+      {msg && <div className="msg ok"><p>{msg}</p></div>}
+      <ul className="qlist">
+        {rows?.map((b) => (
+          <li key={b.name} style={{ cursor: 'default' }}>
+            <span className="q-prompt">{BACKUP_REASON[b.reason] ?? b.reason}<small>{new Date(b.createdAt).toLocaleString('es')} · {b.questions} preguntas · {Math.max(1, Math.round(b.size / 1024))} KB</small></span>
+            <button onClick={() => void download(b)}>Descargar</button>
+            <button className="danger" onClick={() => void restore(b)}>Restaurar</button>
+          </li>
+        ))}
+        {rows && rows.length === 0 && <li className="empty">Todavía no hay copias. La primera se guarda en cuanto arranca el servidor o antes del primer borrado.</li>}
+      </ul>
+    </>
+  )
+}
+
 function ImportExport({ token, refresh }: { token: string; refresh: () => void }) {
   const [text, setText] = useState('')
   const [publish, setPublish] = useState(true)
@@ -330,7 +396,7 @@ function ImportExport({ token, refresh }: { token: string; refresh: () => void }
     const url = URL.createObjectURL(new Blob([JSON.stringify(r.questions, null, 2)], { type: 'application/json' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `leon-aguila-preguntas-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `altus-preguntas-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -340,6 +406,7 @@ function ImportExport({ token, refresh }: { token: string; refresh: () => void }
       <h2>Exportar</h2>
       <p className="hint">Descarga todas las preguntas (copia de seguridad).</p>
       <button onClick={doExport}>Descargar JSON</button>
+      <Backups token={token} refresh={refresh} />
       <h2>Importar</h2>
       <p className="hint">Pega una lista de preguntas. Si una pregunta tiene el mismo <code>id</code> que una existente, la reemplaza. Formato:</p>
       <pre>{EXAMPLE}</pre>
@@ -412,22 +479,85 @@ function Stats({ token, openQuestion }: { token: string; openQuestion: (id: stri
   )
 }
 
+/** The form to turn something players typed into an answer: the owner picks its name, its aliases and its tier. */
+function AddForm({ u, answers, onSave, onCancel }: { u: LoggedAnswer; answers: AnswerStat[]; onSave: (body: Record<string, unknown>) => Promise<void>; onCancel: () => void }) {
+  const [mode, setMode] = useState<'new' | 'alias'>('new')
+  const [label, setLabel] = useState(u.text)
+  const [aliases, setAliases] = useState('')
+  const [points, setPoints] = useState(60)
+  const [includeTyped, setIncludeTyped] = useState(true)
+  const [target, setTarget] = useState('')
+  const [aliasText, setAliasText] = useState(u.text)
+  const [busy, setBusy] = useState(false)
+  const split = (t: string) => t.split(/[|,\n]/).map((x) => x.trim()).filter(Boolean)
+  const typedIsName = label.trim().toLowerCase() === u.text.toLowerCase()
+  const submit = async () => {
+    setBusy(true)
+    await onSave(mode === 'new'
+      ? { text: u.text, label: label.trim(), aliases: split(aliases), points, includeTyped }
+      : { text: u.text, alias: true, label: target, aliases: split(aliasText) })
+    setBusy(false)
+  }
+  return (
+    <div className="addform editor" style={{ flexBasis: '100%' }}>
+      <div className="row">
+        <label className="check"><input type="radio" checked={mode === 'new'} onChange={() => setMode('new')} /> Respuesta nueva</label>
+        <label className="check"><input type="radio" checked={mode === 'alias'} onChange={() => setMode('alias')} /> Otra forma de escribir una que ya existe</label>
+      </div>
+      {mode === 'new' ? (
+        <>
+          <label>Nombre de la respuesta (el que se muestra)
+            <input value={label} onChange={(e) => setLabel(e.target.value)} />
+          </label>
+          <label>Alias: otras formas de escribirla (separados por coma o |)
+            <input value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="por ejemplo: Rey León, Simba" />
+          </label>
+          {!typedIsName && (
+            <label className="check"><input type="checkbox" checked={includeTyped} onChange={(e) => setIncludeTyped(e.target.checked)} /> También aceptar “{u.text}” (lo que escribieron los jugadores)</label>
+          )}
+          <label>Nivel
+            <select value={points} onChange={(e) => setPoints(Number(e.target.value))}>
+              {TIERS.map((t) => <option key={t} value={t}>{t} · {tierLabel(t)}</option>)}
+            </select>
+          </label>
+        </>
+      ) : (
+        <>
+          <label>Respuesta a la que se le agrega
+            <select value={target} onChange={(e) => setTarget(e.target.value)}>
+              <option value="">Elige una…</option>
+              {answers.map((a) => <option key={a.label} value={a.label}>{a.label}</option>)}
+            </select>
+          </label>
+          <label>Formas de escribirla que se agregan (separadas por coma o |)
+            <input value={aliasText} onChange={(e) => setAliasText(e.target.value)} />
+          </label>
+        </>
+      )}
+      <div className="row">
+        <button className="primary" disabled={busy || (mode === 'new' ? !label.trim() : !target || split(aliasText).length === 0)} onClick={submit}>
+          {mode === 'new' ? 'Agregar respuesta' : 'Agregar alias'}
+        </button>
+        <button onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  )
+}
+
 function StatDetailView({ token, id, onBack, openQuestion }: { token: string; id: string; onBack: () => void; openQuestion: (id: string) => void }) {
   const [d, setD] = useState<StatDetail | null>(null)
-  const [tier, setTier] = useState<Record<string, number>>({})
-  const [target, setTarget] = useState<Record<string, string>>({})
+  const [adding, setAdding] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
 
   const load = useCallback(async () => setD(await call<StatDetail>(token, `/stats/${id}`)), [token, id])
   useEffect(() => { void load() }, [load])
 
-  const add = async (u: LoggedAnswer, alias: boolean) => {
+  const save = async (u: LoggedAnswer, body: Record<string, unknown>) => {
     setMsg('')
     try {
-      const r = await call<{ problems: string[]; demoted: boolean }>(token, `/stats/${id}/add`, 'POST', alias
-        ? { text: u.text, alias: true, label: target[u.key] }
-        : { text: u.text, points: tier[u.key] ?? 60 })
+      const r = await call<{ problems: string[]; demoted: boolean }>(token, `/stats/${id}/add`, 'POST', body)
       if (r.demoted) setMsg(`"${u.text}" se agregó, pero la pregunta pasó a borrador: ${r.problems.join(' ')}`)
+      setAdding(null)
       await load()
     } catch (e) {
       setMsg((e as Error).message)
@@ -462,18 +592,14 @@ function StatDetailView({ token, id, onBack, openQuestion }: { token: string; id
           <li key={u.key} className={u.ignored ? 'ignored' : ''} style={{ cursor: 'default' }}>
             <span className="q-prompt">{u.text}<small>{u.count} {u.count === 1 ? 'vez' : 'veces'}{u.ignored ? ' · ignorada' : ''}</small></span>
             {!u.ignored ? (
-              <>
-                <select value={tier[u.key] ?? 60} onChange={(e) => setTier({ ...tier, [u.key]: Number(e.target.value) })}>
-                  {TIERS.map((t) => <option key={t} value={t}>{t} · {tierLabel(t)}</option>)}
-                </select>
-                <button className="primary" onClick={() => add(u, false)}>Agregar como respuesta</button>
-                <select value={target[u.key] ?? ''} onChange={(e) => setTarget({ ...target, [u.key]: e.target.value })}>
-                  <option value="">…o alias de</option>
-                  {d.answers.map((a) => <option key={a.label} value={a.label}>{a.label}</option>)}
-                </select>
-                <button disabled={!target[u.key]} onClick={() => add(u, true)}>Agregar alias</button>
-                <button onClick={() => ignore(u, true)}>Ignorar</button>
-              </>
+              adding === u.key ? (
+                <AddForm u={u} answers={d.answers} onSave={(body) => save(u, body)} onCancel={() => setAdding(null)} />
+              ) : (
+                <>
+                  <button className="primary" onClick={() => { setMsg(''); setAdding(u.key) }}>Agregar…</button>
+                  <button onClick={() => ignore(u, true)}>Ignorar</button>
+                </>
+              )
             ) : (
               <button onClick={() => ignore(u, false)}>Dejar de ignorar</button>
             )}
@@ -552,18 +678,19 @@ export function Admin() {
 
   return (
     <main className="admin">
-      <header>
-        <h1>Altus · Administrador</h1>
+      <header className="adminbar">
+        <h1>ALTUS<small>Administrador</small></h1>
         <nav>
           <button className={tab === 'preguntas' ? 'on' : ''} onClick={() => setTab('preguntas')}>Preguntas</button>
           <button className={tab === 'sugerencias' ? 'on' : ''} onClick={() => setTab('sugerencias')}>
-            Sugerencias{counts && counts.newSuggestions > 0 ? ` (${counts.newSuggestions})` : ''}
+            Sugerencias{counts && counts.newSuggestions > 0 && <span className="count">{counts.newSuggestions}</span>}
           </button>
           <button className={tab === 'respuestas' ? 'on' : ''} onClick={() => setTab('respuestas')}>Respuestas de jugadores</button>
           <button className={tab === 'importar' ? 'on' : ''} onClick={() => setTab('importar')}>Importar / exportar</button>
           <button className="link" onClick={() => { try { sessionStorage.removeItem(TOKEN_KEY) } catch { /* ignore */ } setToken(''); setOk(false) }}>Salir</button>
         </nav>
       </header>
+      <div className="panel">
       {tab === 'preguntas' && <Questions token={token} counts={counts} refresh={refresh} edit={edit} setEdit={setEdit} />}
       {tab === 'sugerencias' && <Suggestions token={token} refresh={refresh} openDraft={(q) => { setEdit(fromQuestion(q)); setTab('preguntas') }} />}
       {tab === 'respuestas' && (
@@ -574,6 +701,14 @@ export function Admin() {
         }} />
       )}
       {tab === 'importar' && <ImportExport token={token} refresh={refresh} />}
+      </div>
+      {counts?.ip !== undefined && (
+        <p className="hint footer">
+          Tu IP según el servidor: <code>{counts.ip || 'desconocida'}</code>{counts.hops ? ` (${counts.hops} ${counts.hops === 1 ? 'salto' : 'saltos'} de proxy)` : ''}.
+          Debe ser tu IP pública (búscala como “cuál es mi ip”). Si sale una dirección privada (10.x, 100.64.x, 172.16–31.x), todos los visitantes
+          parecerían la misma persona y el bloqueo de intentos de acceso se compartiría con ellos.
+        </p>
+      )}
     </main>
   )
 }

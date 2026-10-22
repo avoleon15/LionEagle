@@ -1,0 +1,112 @@
+/* ---------- admin: the same look as the game (dark navy boxes, square corners, gold buttons, pixel titles) ---------- */
+body:has(main.admin) { background: #0e1540; }
+
+main.admin {
+  --bg: #0e1540; --panel: #151d4a; --panel-2: #22306f; --field: #0a0f2c; --ink: #0b1030;
+  --rim: #7ec8f2; --text: #f6f1df; --muted: #a9b8de; --gold: #ffd23f; --pink: #ff5c8a; --green: #8ee06a; --red: #ff7b7b;
+  --t10: #7fe0ff; --t30: #5b8cff; --t60: #7be35a; --t80: #c77dff; --t100: #ffd23f;
+  --pixel: 'Pixelify Sans', ui-monospace, Menlo, monospace;
+  display: block; max-width: 1080px; margin: 0 auto; padding: 0 16px 60px; min-height: 100dvh;
+  text-align: left; color: var(--text); background: var(--bg);
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+main.admin * { box-sizing: border-box; }
+
+/* top bar */
+.admin .adminbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; margin: 0 -16px 18px; padding: 12px 16px; background: var(--panel); border-bottom: 3px solid var(--rim); box-shadow: 0 4px 0 var(--ink); }
+.admin h1 { margin: 0; font-family: var(--pixel); font-size: 1.7rem; font-weight: 700; letter-spacing: 0.06em; color: var(--gold); text-shadow: 3px 3px 0 var(--ink); }
+.admin h1 small { margin-left: 10px; font-size: 0.8rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--rim); text-shadow: none; }
+.admin h2 { margin: 22px 0 8px; font-family: var(--pixel); font-size: 1.15rem; font-weight: 600; letter-spacing: 0.06em; color: var(--rim); }
+.admin nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.admin nav button.on { background: var(--gold); color: var(--ink); border-color: var(--ink); }
+.admin nav .count { display: inline-block; min-width: 20px; margin-left: 6px; padding: 0 6px; background: var(--pink); color: #fff; font-size: 0.8rem; text-align: center; }
+
+/* page content */
+.admin .panel { padding: 0; }
+.admin .hint { margin: 6px 0 12px; color: var(--muted); font-size: 0.92rem; line-height: 1.45; }
+.admin .error { margin: 6px 0; color: var(--red); font-weight: 600; }
+.admin code, .admin pre { background: var(--field); border: 2px solid var(--panel-2); color: var(--gold); padding: 1px 6px; font-size: 0.85rem; }
+.admin pre { padding: 10px 12px; overflow: auto; }
+
+/* numbers at a glance */
+.admin .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.admin .tile { padding: 10px 14px; background: var(--panel); border: 3px solid var(--panel-2); box-shadow: 3px 3px 0 var(--ink); }
+.admin .tile b { display: block; font-family: var(--pixel); font-size: 2rem; line-height: 1.1; color: var(--gold); }
+.admin .tile span { font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.admin .tile.published b { color: var(--green); } .admin .tile.suggest b { color: var(--pink); }
+
+/* controls */
+.admin button, .admin input, .admin textarea, .admin select {
+  font: inherit; color: var(--text); background: var(--field);
+  border: 3px solid var(--panel-2); border-radius: 0; padding: 8px 12px;
+}
+.admin input:focus, .admin textarea:focus, .admin select:focus { outline: none; border-color: var(--gold); }
+.admin input::placeholder, .admin textarea::placeholder { color: #6f7db0; }
+.admin textarea { width: 100%; resize: vertical; line-height: 1.4; }
+.admin button { font-family: var(--pixel); font-weight: 600; letter-spacing: 0.04em; cursor: pointer; background: var(--panel-2); border-color: var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.admin button:hover:not(:disabled) { border-color: var(--rim); }
+.admin button:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.admin button:disabled { opacity: 0.45; cursor: not-allowed; }
+.admin button.primary { background: var(--gold); color: var(--ink); font-size: 1rem; }
+.admin button.danger { color: var(--red); }
+.admin button.link { border: none; box-shadow: none; background: none; text-decoration: underline; text-underline-offset: 3px; color: var(--muted); font-family: inherit; font-weight: 500; }
+.admin input[type='checkbox'], .admin input[type='radio'] { accent-color: var(--gold); width: 18px; height: 18px; padding: 0; }
+.admin .check { display: flex; gap: 8px; align-items: center; margin: 8px 0; font-weight: 500; }
+.admin .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; padding: 10px; background: var(--panel); border: 3px solid var(--panel-2); }
+.admin .toolbar input { flex: 1; min-width: 160px; }
+.admin .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+
+/* question list */
+.qlist { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.qlist li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; background: var(--panel); border: 3px solid var(--panel-2); border-radius: 0; cursor: pointer; }
+.qlist li:hover { border-color: var(--rim); }
+.qlist li.empty, .qlist li.sug { cursor: default; }
+.qlist li.empty:hover, .qlist li.sug:hover { border-color: var(--panel-2); }
+.qlist li.empty { color: var(--muted); }
+.qlist li.ignored { opacity: 0.5; }
+.qlist .q-prompt { flex: 1; min-width: 220px; font-weight: 600; display: flex; flex-direction: column; gap: 2px; }
+.qlist .q-prompt small { font-weight: 400; color: var(--muted); }
+.qlist .cat-name { min-width: 96px; color: var(--rim); font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.qlist .n { color: var(--muted); font-size: 0.85rem; white-space: nowrap; }
+.qlist .warn { color: var(--gold); font-weight: 700; font-size: 0.85rem; }
+.badge { padding: 2px 8px; font-family: var(--pixel); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; background: var(--panel-2); color: var(--text); border: 2px solid var(--ink); }
+.badge.published { background: var(--green); color: var(--ink); } .badge.draft { background: var(--gold); color: var(--ink); }
+.badge.archived { background: #55618f; color: #dfe5ff; } .badge.src { background: var(--rim); color: var(--ink); }
+
+/* editor */
+.editor { display: flex; flex-direction: column; gap: 12px; }
+.editor label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.editor label input, .editor label select { font-weight: 400; }
+.admin .editor label.check { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
+.editor .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.editor .row .check { margin: 0; }
+.tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; }
+.tier { padding: 10px; background: var(--panel); border: 3px solid var(--panel-2); border-left-width: 8px; font-size: 0.9rem; }
+.tier textarea { font-weight: 400; font-size: 0.9rem; }
+.tier small { color: var(--muted); }
+.tier.t10 { border-left-color: var(--t10); } .tier.t30 { border-left-color: var(--t30); } .tier.t60 { border-left-color: var(--t60); }
+.tier.t80 { border-left-color: var(--t80); } .tier.t100 { border-left-color: var(--t100); }
+.probe { margin: 0; font-weight: 600; color: var(--green); }
+.addform { margin: 4px 0 0; padding: 12px; background: var(--field); border: 3px dashed var(--gold); }
+
+/* messages */
+.msg { padding: 8px 12px; border: 3px solid; background: var(--panel); }
+.msg p { margin: 2px 0; }
+.msg.ok { border-color: var(--green); } .msg.warn { border-color: var(--gold); } .msg.error { border-color: var(--red); }
+
+/* login */
+main.admin.login { display: grid; place-items: center; padding-top: 0; }
+.admin .card { width: 100%; max-width: 420px; padding: 24px 22px; display: flex; flex-direction: column; gap: 14px; background: var(--panel); border: 3px solid var(--rim); border-radius: 0; box-shadow: 6px 6px 0 var(--ink); }
+.admin .card .tagline { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+@media (max-width: 640px) {
+  .admin h1 { font-size: 1.35rem; }
+  .admin .adminbar { position: static; }
+  .admin nav { flex-wrap: nowrap; overflow-x: auto; width: 100%; padding: 0 4px 8px 0; }
+  .admin nav button { flex: none; white-space: nowrap; }
+  .admin .tiles { grid-template-columns: repeat(2, 1fr); }
+  .admin .toolbar select, .admin .toolbar button { flex: 1 1 100%; }
+}
+.editor label small { font-weight: 400; color: var(--muted); }
+.editor label small.warn { color: var(--gold); }
+.admin .footer { margin-top: 28px; padding-top: 12px; border-top: 2px solid var(--panel-2); font-size: 0.8rem; }
