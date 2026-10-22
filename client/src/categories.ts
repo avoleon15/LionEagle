@@ -4,7 +4,7 @@ import type { CategoryInfo } from '../../shared/protocol'
 // (the owner added a new one in the admin) goes to "Otras", so nothing ever disappears.
 const GROUPS: { name: string; members: string[] }[] = [
   { name: 'Videojuegos', members: ['Videojuegos', 'Minecraft', 'Pokémon'] },
-  { name: 'Deportes', members: ['Deportes', 'Fútbol'] },
+  { name: 'Deportes', members: ['Deportes', 'Fútbol', 'Ajedrez'] },
   { name: 'Cine, series y música', members: ['Cine y series', 'Música', 'Cultura pop', 'Youtubers'] },
   { name: 'Cotidiano y palabras', members: ['Cotidiano', 'Palabras', 'Marcas y apps'] },
   { name: 'Ciencia y mundo', members: ['Ciencia', 'Naturaleza', 'Geografía', 'Historia', 'Cultura general'] },
