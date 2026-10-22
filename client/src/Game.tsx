@@ -219,6 +219,24 @@ function Table({ players, scores, me, gained }: { players: PlayerView[]; scores:
   )
 }
 
+/** The final podium: first place in the middle and tallest, second on its left, third on its right. */
+function Podium({ players, scores, me }: { players: PlayerView[]; scores: Record<string, number>; me: string }) {
+  const ranked = players.map((p, i) => ({ p, i, s: scores[p.id] ?? 0 })).sort((a, b) => b.s - a.s || a.i - b.i)
+  const steps = [1, 0, 2].filter((k) => k < ranked.length).map((k) => ({ ...ranked[k], k, place: ranked.findIndex((x) => x.s === ranked[k].s) + 1 }))
+  return (
+    <div className="podium" aria-label="Podio">
+      {steps.map((r) => (
+        <div key={r.p.id} className={`step s${r.k + 1}${r.p.id === me ? ' me' : ''}`}>
+          <Avatar a={r.p.avatar} size={r.k === 0 ? 56 : 44} />
+          <span className="pname">{r.p.nick}</span>
+          <b className="pscore">{r.s}</b>
+          <span className={`block place p${r.place}`}>{r.place}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function Reveal({ room, game, me }: { room: RoomState; game: GameView; me: string }) {
   const reveal = game.reveal!
   const gained: Record<string, number> = {}
@@ -253,6 +271,8 @@ function Final({ room, game, me, onLeave }: Props) {
     <section className="box final">
       <p className="kicker">Resultado final</p>
       <h2 className="prompt">{myPlace === 1 ? '¡Ganaste!' : `Quedaste en el lugar ${myPlace} de ${ranked.length}`}</h2>
+      <Podium players={room.players} scores={game.scores} me={me} />
+      <p className="kicker">Tabla completa</p>
       <Table players={room.players} scores={game.scores} me={me} />
       {error && <p className="error">{error}</p>}
       <button onClick={() => setDetails((d) => !d)}>{details ? 'Ocultar mis resultados' : 'Ver mis resultados'}</button>

@@ -455,3 +455,30 @@ main.admin.login { display: grid; place-items: center; }
 
 /* on phones the browser bars slide away: size the backgrounds to the large viewport so no strip is left uncovered */
 @supports (height: 100lvh) { .backdrop, .scene { bottom: auto; height: 100lvh; } }
+
+/* final podium + the whole table; the box scrolls when 12 players do not fit a short screen */
+.final { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.podium { display: flex; justify-content: center; align-items: flex-end; gap: 8px; padding-top: 4px; }
+.podium .step { flex: 1; min-width: 0; max-width: 118px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.podium .pname { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
+.podium .pscore { font-family: var(--pixel); font-size: 1.1rem; }
+.podium .step.me .pname { color: var(--gold); }
+.podium .block { width: 100%; height: auto; display: grid; place-items: start center; padding-top: 6px; font-size: 1.4rem; border-width: 3px; box-shadow: 3px 3px 0 var(--ink); }
+.podium .s1 .block { min-height: 86px; } .podium .s2 .block { min-height: 62px; } .podium .s3 .block { min-height: 46px; }
+.final .kicker { margin: 4px 0 -4px; text-align: left; }
+
+/* categories: each group opens to pick its subcategories one by one */
+.groups { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; }
+.group { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 4px; }
+.group .grow { display: flex; gap: 6px; }
+.app .group .gbtn { flex: 1; width: auto; justify-content: flex-start; gap: 10px; }
+.app .group .expand { min-width: 74px; display: flex; justify-content: center; align-items: center; gap: 6px; background: #0a0f2c; color: var(--muted); padding: 8px; box-shadow: 3px 3px 0 var(--ink); }
+.app .group .expand small { font-family: var(--pixel); font-size: 0.8rem; }
+.subs { display: flex; flex-direction: column; gap: 4px; padding-left: 16px; border-left: 4px solid var(--panel-2); }
+.app .sbtn { width: 100%; display: flex; justify-content: flex-start; align-items: center; gap: 10px; background: #0a0f2c; color: var(--muted); padding: 8px 12px; box-shadow: 2px 2px 0 var(--ink); font-family: Inter, system-ui, sans-serif; font-weight: 600; letter-spacing: 0.01em; text-transform: none; }
+.app .sbtn.on { background: #3a3a1a; color: var(--gold); border-color: var(--gold); }
+.app .sbtn:disabled { opacity: 1; cursor: default; }
+.box-mark { font-size: 1rem; line-height: 1; }
+.stage > .box.final { max-height: calc(100dvh - 134px); }
+.final .table li { padding: 3px 8px; }
+.final .prompt { font-size: 1.6rem; }

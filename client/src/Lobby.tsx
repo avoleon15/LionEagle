@@ -17,6 +17,7 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
   const [suggesting, setSuggesting] = useState(false)
   const [copied, setCopied] = useState(false)
   const [open, setOpen] = useState(false)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const isHost = room.hostId === me
   const link = `${window.location.origin}/${room.code}`
 
@@ -44,7 +45,19 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
   // A group is on when all its categories are, "some" when only a few are. Tapping turns the whole group on, or off when it was all on.
   const allOn = room.selected.length === room.categories.length
   const picked = groups.filter((g) => g.categories.every((c) => chosen.has(c.name)))
-  const summary = allOn ? 'Todas las categorías' : picked.length > 0 && picked.length <= 2 && room.selected.length === picked.reduce((n, g) => n + g.categories.length, 0) ? picked.map((g) => g.name).join(' y ') : `${room.selected.length} de ${room.categories.length} categorías`
+  const summary = allOn
+    ? 'Todas las categorías'
+    : picked.length > 0 && picked.length <= 2 && room.selected.length === picked.reduce((n, g) => n + g.categories.length, 0)
+      ? picked.map((g) => g.name).join(' y ')
+      : room.selected.length <= 2 && room.selected.length > 0
+        ? room.selected.join(' y ')
+        : `${room.selected.length} de ${room.categories.length} categorías`
+  const toggleOpen = (name: string) =>
+    setExpanded((cur) => {
+      const next = new Set(cur)
+      if (!next.delete(name)) next.add(name)
+      return next
+    })
   const toggleGroup = (names: string[]) => {
     const allOn = names.every((n) => chosen.has(n))
     choose(allOn ? room.selected.filter((n) => !names.includes(n)) : [...new Set([...room.selected, ...names])])
@@ -105,11 +118,31 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
             const names = g.categories.map((c) => c.name)
             const on = names.filter((n) => chosen.has(n)).length
             const state = on === names.length ? ' on' : on > 0 ? ' some' : ''
+            const several = g.categories.length > 1
+            const isOpen = expanded.has(g.name)
             return (
               <div key={g.name} className="group">
-                <button className={'gbtn' + state} disabled={!isHost} aria-pressed={on === names.length} onClick={() => toggleGroup(names)}>
-                  {g.name}
-                </button>
+                <div className="grow">
+                  <button className={'gbtn' + state} disabled={!isHost} aria-pressed={on === names.length} onClick={() => toggleGroup(names)}>
+                    <span className="box-mark" aria-hidden>{on === names.length ? '■' : on > 0 ? '◧' : '□'}</span>
+                    {g.name}
+                  </button>
+                  {several && (
+                    <button className="expand" aria-expanded={isOpen} aria-label={`Subcategorías de ${g.name}`} onClick={() => toggleOpen(g.name)}>
+                      <small>{on}/{names.length}</small> {isOpen ? '▲' : '▼'}
+                    </button>
+                  )}
+                </div>
+                {several && isOpen && (
+                  <div className="subs">
+                    {g.categories.map((c) => (
+                      <button key={c.name} className={'sbtn' + (chosen.has(c.name) ? ' on' : '')} disabled={!isHost} aria-pressed={chosen.has(c.name)} onClick={() => toggleGroup([c.name])}>
+                        <span className="box-mark" aria-hidden>{chosen.has(c.name) ? '■' : '□'}</span>
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
