@@ -22,6 +22,15 @@ interface Summary { id: string; category: string; prompt: string; status: Questi
 interface Suggestion { id: number; prompt: string; category: string; answers: string; nick: string; status: string; createdAt: number; questionId: string | null }
 interface Counts { questions: Record<string, number>; newSuggestions: number; ip?: string; hops?: number }
 interface BackupRow { name: string; createdAt: number; reason: string; size: number; questions: number }
+interface Overview {
+  games: number; finished: number; seats: number; avgPlayers: number; devices: number; returning: number
+  newDevices7: number; games7: number; today: number
+  byDay: { day: string; games: number; seats: number }[]
+  topQuestions: { id: string; prompt: string; category: string; asked: number; answered: number }[]
+  neverAsked: number; published: number
+  categories: { category: string; asked: number; questions: number }[]
+  firstGameAt: number | null
+}
 const BACKUP_REASON: Record<string, string> = { borrar: 'Antes de borrar una pregunta', importar: 'Antes de importar', diaria: 'Copia diaria', 'antes-de-restaurar': 'Antes de restaurar otra copia' }
 interface OverviewRow { id: string; prompt: string; category: string; status: string; asked: number; answered: number; validTotal: number; unknownTotal: number; topUnknown: { text: string; count: number }[]; mismatches: number }
 interface AnswerStat { label: string; points: number; count: number; share: number; suggested: number | null }
@@ -628,6 +637,84 @@ function StatDetailView({ token, id, onBack, openQuestion }: { token: string; id
   )
 }
 
+/** How much the game is played: games, players, the most asked questions, and what is (and is not) stored. */
+function Summary({ token }: { token: string }) {
+  const [o, setO] = useState<Overview | null>(null)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    call<Overview>(token, '/metrics').then(setO).catch((e) => setError((e as Error).message))
+  }, [token])
+  if (error) return <p className="error">{error}</p>
+  if (!o) return <p className="hint">Cargando…</p>
+  const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '—')
+  const peak = Math.max(1, ...o.byDay.map((d) => d.games))
+  const maxAsked = Math.max(1, ...o.topQuestions.map((q) => q.asked))
+  return (
+    <>
+      <div className="tiles">
+        <div className="tile published"><b>{o.games}</b><span>Partidas jugadas</span></div>
+        <div className="tile"><b>{o.devices}</b><span>Jugadores distintos</span></div>
+        <div className="tile"><b>{o.seats}</b><span>Veces que alguien jugó</span></div>
+        <div className="tile"><b>{o.avgPlayers}</b><span>Jugadores por partida</span></div>
+        <div className="tile"><b>{o.today}</b><span>Partidas hoy</span></div>
+        <div className="tile"><b>{o.games7}</b><span>Partidas en 7 días</span></div>
+        <div className="tile"><b>{pct(o.finished, o.games)}</b><span>Llegaron al final</span></div>
+        <div className="tile"><b>{pct(o.returning, o.devices)}</b><span>Volvieron a jugar</span></div>
+      </div>
+      <p className="hint">
+        {o.firstGameAt ? `Datos desde el ${new Date(o.firstGameAt).toLocaleDateString('es')}. ` : 'Todavía no se ha jugado ninguna partida desde que se empezó a contar. '}
+        “Jugadores distintos” cuenta navegadores o celulares (si alguien juega desde dos aparatos, o borra los datos del navegador, cuenta como otro).
+        “Veces que alguien jugó” cuenta una por cada partida en la que participó cada persona. Nuevos en 7 días: {o.newDevices7}.
+      </p>
+
+      <h2>Partidas por día (últimos 14)</h2>
+      <div className="bars" role="img" aria-label="Partidas por día">
+        {o.byDay.map((d) => (
+          <div key={d.day} className="bar" title={`${d.day}: ${d.games} partidas, ${d.seats} jugadores`}>
+            <span className="n">{d.games || ''}</span>
+            <i style={{ height: `${(d.games / peak) * 100}%` }} />
+            <small>{d.day.slice(8)}/{d.day.slice(5, 7)}</small>
+          </div>
+        ))}
+      </div>
+      <p className="hint">Los días se cuentan a la medianoche de Guatemala.</p>
+
+      <h2>Preguntas que más salen</h2>
+      {o.topQuestions.length === 0 && <p className="hint">Todavía no hay datos: aparecen cuando se juegue.</p>}
+      <ul className="qlist">
+        {o.topQuestions.map((q, i) => (
+          <li key={q.id} style={{ cursor: 'default' }}>
+            <span className="cat-name">{i + 1}</span>
+            <span className="q-prompt">{q.prompt}<small>{q.category} · respondieron {pct(q.answered, q.asked)}</small></span>
+            <span className="meter" aria-hidden><i style={{ width: `${(q.asked / maxAsked) * 100}%` }} /></span>
+            <span className="n">{q.asked} veces</span>
+          </li>
+        ))}
+      </ul>
+      <p className="hint">{o.neverAsked} de las {o.published} preguntas publicadas todavía no han salido en ninguna partida.</p>
+
+      <h2>Categorías</h2>
+      <ul className="qlist">
+        {o.categories.map((c) => (
+          <li key={c.category} style={{ cursor: 'default' }}>
+            <span className="q-prompt">{c.category}<small>{c.questions} preguntas publicadas</small></span>
+            <span className="n">{c.asked} veces</span>
+          </li>
+        ))}
+      </ul>
+
+      <h2>Qué se guarda de los jugadores</h2>
+      <ul className="stored">
+        <li><b>Sí:</b> cada respuesta que se escribe en una pregunta, sea válida o no, con cuántas veces se escribió. Con eso se calcula qué respuestas de la lista son más comunes y qué falta (pestaña “Respuestas de jugadores”). Hasta 400 textos distintos por pregunta.</li>
+        <li><b>Sí:</b> cuántas veces salió cada pregunta y cuántos la respondieron bien.</li>
+        <li><b>Sí:</b> de cada partida, la fecha, cuántos jugadores tuvo y si llegó al final.</li>
+        <li><b>Sí:</b> un número al azar que cada navegador inventa y guarda; el servidor solo guarda una versión cifrada (hash) para contar jugadores distintos.</li>
+        <li><b>No:</b> apodos, direcciones IP, quién escribió cada respuesta ni qué puntos tuvo cada persona. Las salas y las partidas en curso viven en memoria y se pierden al reiniciar.</li>
+      </ul>
+    </>
+  )
+}
+
 // ---- shell ----
 
 export function Admin() {
@@ -636,7 +723,7 @@ export function Admin() {
   const [ok, setOk] = useState(false)
   const [error, setError] = useState('')
   const [counts, setCounts] = useState<Counts | null>(null)
-  const [tab, setTab] = useState<'preguntas' | 'sugerencias' | 'respuestas' | 'importar'>('preguntas')
+  const [tab, setTab] = useState<'resumen' | 'preguntas' | 'sugerencias' | 'respuestas' | 'importar'>('resumen')
   const [edit, setEdit] = useState<Draft | null>(null)
 
   const refresh = useCallback(async () => {
@@ -681,6 +768,7 @@ export function Admin() {
       <header className="adminbar">
         <h1>ALTUS<small>Administrador</small></h1>
         <nav>
+          <button className={tab === 'resumen' ? 'on' : ''} onClick={() => setTab('resumen')}>Resumen</button>
           <button className={tab === 'preguntas' ? 'on' : ''} onClick={() => setTab('preguntas')}>Preguntas</button>
           <button className={tab === 'sugerencias' ? 'on' : ''} onClick={() => setTab('sugerencias')}>
             Sugerencias{counts && counts.newSuggestions > 0 && <span className="count">{counts.newSuggestions}</span>}
@@ -691,6 +779,7 @@ export function Admin() {
         </nav>
       </header>
       <div className="panel">
+      {tab === 'resumen' && <Summary token={token} />}
       {tab === 'preguntas' && <Questions token={token} counts={counts} refresh={refresh} edit={edit} setEdit={setEdit} />}
       {tab === 'sugerencias' && <Suggestions token={token} refresh={refresh} openDraft={(q) => { setEdit(fromQuestion(q)); setTab('preguntas') }} />}
       {tab === 'respuestas' && (

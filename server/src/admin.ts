@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import * as backup from './backup'
 import * as db from './db'
+import * as metrics from './metrics'
 import * as stats from './stats'
 import { buildIndex, keys, match, validateQuestion } from './matching'
 import { RateLimiter } from './ratelimit'
@@ -151,6 +152,7 @@ export function adminRouter(token: string): express.Router {
   r.post('/publish-ready', wrap(() => db.publishReady()))
   r.post('/archive-samples', wrap(() => ({ archived: db.archiveSamples() })))
 
+  r.get('/metrics', wrap(() => metrics.overview()))
   r.get('/stats', wrap(() => ({ overview: stats.overview(), minForSuggestions: stats.MIN_FOR_SUGGESTIONS })))
   r.get('/stats/:id', wrap((req) => {
     const d = stats.detail(String(req.params.id))

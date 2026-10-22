@@ -12,6 +12,7 @@ import {
 } from '../../shared/protocol'
 import { HOST_HANDOVER_MS } from './config'
 import * as db from './db'
+import { deviceKey, gameFinished, gameStarted } from './metrics'
 import { Game } from './game'
 import { selectQuestions } from './selection'
 
@@ -25,6 +26,8 @@ interface Player {
   avatar: Avatar
   socketId: string | null
   dropTimer: NodeJS.Timeout | null
+  /** Hash of the browser's random id (never sent to anybody): only for counting different players. */
+  device: string | null
 }
 
 interface Room {
@@ -60,6 +63,7 @@ export function sanitizeJoin(raw: unknown): JoinPayload {
     nick: text(r.nick, 200) ?? '',
     avatar: (typeof r.avatar === 'object' && r.avatar !== null ? r.avatar : {}) as Avatar,
     playerId: text(r.playerId, 64) || undefined,
+    deviceId: text(r.deviceId, 64) || undefined,
   }
 }
 
@@ -134,7 +138,7 @@ export function join(
 
   if (!p.code) {
     const room: Room = { code: newCode(), hostId: '', phase: 'lobby', players: new Map(), game: null, selected: null, played: new Set(), handoverTimer: null, gameNo: 0 }
-    const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null }
+    const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId) }
     room.hostId = player.id
     room.players.set(player.id, player)
     rooms.set(room.code, room)
@@ -153,6 +157,7 @@ export function join(
     const clash = [...room.players.values()].some((q) => q.id !== existing.id && q.nick.toLowerCase() === nick.toLowerCase())
     if (!clash) existing.nick = nick
     existing.avatar = avatar
+    existing.device ??= deviceKey(p.deviceId)
     if (room.hostId === existing.id && room.handoverTimer) {
       clearTimeout(room.handoverTimer)
       room.handoverTimer = null
@@ -168,7 +173,7 @@ export function join(
   const taken = [...room.players.values()].some((q) => q.nick.toLowerCase() === nick.toLowerCase())
   if (taken) throw new RoomError('Ese apodo ya está en uso en la sala.')
 
-  const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null }
+  const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId) }
   room.players.set(player.id, player)
   return { room, player }
 }
@@ -266,9 +271,11 @@ export function start(socketId: string): Room {
       members: () => [...room.players.keys()],
       active: () => [...room.players.values()].filter((p) => p.socketId !== null).map((p) => p.id),
       changed: () => notify(room),
+      finished: () => gameFinished(gameId),
     },
     picked,
   )
+  const gameId = gameStarted(room.players.size, [...room.players.values()].map((p) => p.device))
   if (picked.some((q) => room.played.has(q.id))) room.played.clear() // the room has seen everything: start over
   picked.forEach((q) => room.played.add(q.id))
   room.gameNo++
