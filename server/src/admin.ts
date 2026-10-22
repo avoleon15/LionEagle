@@ -20,6 +20,15 @@ export function adminToken(): { token: string; source: TokenSource } {
   return { token, source: 'generated' }
 }
 
+/** Shortest admin token that is not worth warning about (the generated one has 24). */
+export const MIN_TOKEN_LENGTH = 24
+
+/** A warning for the log when the token is short enough to be guessed, otherwise null. */
+export function weakTokenWarning(token: string): string | null {
+  if (token.length >= MIN_TOKEN_LENGTH) return null
+  return `AVISO: el token de admin tiene solo ${token.length} caracteres. Usa uno de ${MIN_TOKEN_LENGTH} o más (por ejemplo, el que da: openssl rand -base64 24).`
+}
+
 const same = (a: string, b: string) => {
   const x = Buffer.from(a)
   const y = Buffer.from(b)
@@ -128,7 +137,7 @@ export function adminRouter(token: string): express.Router {
     if (!Array.isArray(list)) throw new db.InputError('Se esperaba una lista de preguntas.')
     return db.importQuestions(list, req.body?.publish !== false)
   }))
-  r.get('/export', wrap(() => ({ questions: db.listQuestions().map(({ id, category, prompt, status, source, notes, answers }) => ({ id, category, prompt, status, source, notes, answers })) })))
+  r.get('/export', wrap(() => ({ questions: db.exportQuestions() })))
   r.post('/publish-ready', wrap(() => db.publishReady()))
   r.post('/archive-samples', wrap(() => ({ archived: db.archiveSamples() })))
 

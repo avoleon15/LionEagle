@@ -12,6 +12,7 @@ interface Question {
   status: 'draft' | 'published' | 'archived'
   source: 'sample' | 'owner' | 'suggestion'
   notes: string
+  hint: string
   answers: Answer[]
   problems?: string[]
   updatedAt: number
@@ -26,6 +27,8 @@ interface LoggedAnswer { key: string; text: string; count: number; lastAt: numbe
 interface StatDetail { id: string; prompt: string; category: string; asked: number; answered: number; validTotal: number; unknownTotal: number; answers: AnswerStat[]; unknown: LoggedAnswer[]; minForSuggestions: number }
 
 const TOKEN_KEY = 'leonaguila.admin'
+/** Hints in the content files stay within this many letters; the server accepts up to 160. */
+const HINT_SOFT_LIMIT = 120
 const STATUS_LABEL = { draft: 'Borrador', published: 'Publicada', archived: 'Archivada' } as const
 const SOURCE_LABEL = { sample: 'Muestra', owner: 'Propia', suggestion: 'Sugerencia' } as const
 
@@ -63,10 +66,10 @@ function toAnswers(text: TierText): Answer[] {
 
 // ---- editor ----
 
-interface Draft { id?: string; category: string; prompt: string; notes: string; status: Question['status']; source: Question['source']; text: TierText }
+interface Draft { id?: string; category: string; prompt: string; notes: string; hint: string; status: Question['status']; source: Question['source']; text: TierText }
 
-const blank = (category = ''): Draft => ({ category, prompt: '', notes: '', status: 'draft', source: 'owner', text: toText([]) })
-const fromQuestion = (q: Question): Draft => ({ id: q.id, category: q.category, prompt: q.prompt, notes: q.notes, status: q.status, source: q.source, text: toText(q.answers) })
+const blank = (category = ''): Draft => ({ category, prompt: '', notes: '', hint: '', status: 'draft', source: 'owner', text: toText([]) })
+const fromQuestion = (q: Question): Draft => ({ id: q.id, category: q.category, prompt: q.prompt, notes: q.notes, hint: q.hint ?? '', status: q.status, source: q.source, text: toText(q.answers) })
 
 function Editor({ token, draft: initial, categories, onSaved, onCancel }: {
   token: string
@@ -93,7 +96,7 @@ function Editor({ token, draft: initial, categories, onSaved, onCancel }: {
 
   const save = async (status: Question['status']) => {
     setMsg(null)
-    const body = { category: d.category, prompt: d.prompt, notes: d.notes, source: d.source, status, answers }
+    const body = { category: d.category, prompt: d.prompt, notes: d.notes, hint: d.hint, source: d.source, status, answers }
     try {
       const r = await call<{ question: Question; problems: string[]; demoted: boolean }>(token, d.id ? `/questions/${d.id}` : '/questions', d.id ? 'PUT' : 'POST', body)
       if (r.demoted) {
@@ -122,6 +125,10 @@ function Editor({ token, draft: initial, categories, onSaved, onCancel }: {
       </label>
       <label>Pregunta
         <input value={d.prompt} onChange={(e) => setD({ ...d, prompt: e.target.value })} placeholder="Nombra un país de Norteamérica." />
+      </label>
+      <label>Pista (se muestra pequeña debajo de la pregunta)
+        <input value={d.hint} maxLength={160} onChange={(e) => setD({ ...d, hint: e.target.value })} placeholder="Piensa en: ciudades, países y ríos." />
+        <small className={d.hint.length > HINT_SOFT_LIMIT ? 'warn' : 'hint'}>{d.hint.length}/{HINT_SOFT_LIMIT}{d.hint.length > HINT_SOFT_LIMIT ? ' · una pista tan larga ocupa mucho espacio en el teléfono' : ''}. No pongas respuestas de la lista en la pista.</small>
       </label>
       <p className="hint">
         Respuestas por nivel, <b>una por línea</b>. Si una respuesta se puede escribir de otra forma, sepárala con <b>|</b>:
@@ -336,7 +343,7 @@ function ImportExport({ token, refresh }: { token: string; refresh: () => void }
     const url = URL.createObjectURL(new Blob([JSON.stringify(r.questions, null, 2)], { type: 'application/json' }))
     const a = document.createElement('a')
     a.href = url
-    a.download = `leon-aguila-preguntas-${new Date().toISOString().slice(0, 10)}.json`
+    a.download = `altus-preguntas-${new Date().toISOString().slice(0, 10)}.json`
     a.click()
     URL.revokeObjectURL(url)
   }

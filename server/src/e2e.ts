@@ -34,7 +34,7 @@ const base = `http://localhost:${port}`
 
 let child: ChildProcess | null = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
   cwd: serverDir,
-  env: { ...process.env, PORT: String(port), DB_PATH: join(dir, 'e2e.db'), ADMIN_TOKEN: 'e2e', LE_ROUND_MS: '3000', LE_REVEAL_MS: '400', LE_HOST_HANDOVER_MS: '500', NODE_NO_WARNINGS: '1' },
+  env: { ...process.env, PORT: String(port), DB_PATH: join(dir, 'e2e.db'), ADMIN_TOKEN: 'e2e', LE_NO_SEED: '1', LE_ROUND_MS: '3000', LE_REVEAL_MS: '400', LE_HOST_HANDOVER_MS: '500', NODE_NO_WARNINGS: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 let log = ''
@@ -259,6 +259,14 @@ const av = { color: 1, face: 2, hat: 4 }
     codes.push(r.status)
   }
   check(codes.filter((c) => c === 200).length === 5 && codes[5] === 429 && codes[6] === 429, `a faked X-Forwarded-For does not get around the suggestion limit (${codes.join(' ')})`)
+
+  const badJson = await api('/api/admin/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"questions": [' })
+  const badText = await badJson.text()
+  check(badJson.status === 400 && /json/.test(badJson.headers.get('content-type') ?? '') && !/node_modules|\.js:\d+/.test(badText), `a broken JSON body answers with a short JSON error, not an error page with file paths (${badJson.status})`)
+  const tooBig = await api('/api/admin/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: big + big })
+  check(tooBig.status === 413 && /json/.test(tooBig.headers.get('content-type') ?? ''), `a body over the limit answers 413 with JSON (${tooBig.status})`)
+  const exported = await (await api('/api/admin/export')).json()
+  check(Array.isArray(exported.questions) && 'hint' in exported.questions[0], 'the backup file carries the hint of every question')
 
   // Last, because it locks this address out of the admin for a while. The request without a token above
   // already counted as one failure, so the lockout starts at the 10th failure overall (the 9th wrong token here).

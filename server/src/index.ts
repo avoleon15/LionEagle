@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import express from 'express'
 import { Server } from 'socket.io'
 import type { Ack, AnswerResult, ClientToServer, JoinResult, ServerToClient } from '../../shared/protocol'
-import { adminRouter, adminToken } from './admin'
+import { adminRouter, adminToken, weakTokenWarning } from './admin'
 import * as db from './db'
 import { GameError } from './game'
 import { RateLimiter } from './ratelimit'
@@ -20,6 +20,8 @@ const clientDist = pathJoin(here, '../../client/dist')
 db.init()
 await seedContent()
 const admin = adminToken()
+const weak = weakTokenWarning(admin.token)
+if (weak) console.warn(weak)
 
 const app = express()
 // Only trust X-Forwarded-For when the server really sits behind a proxy (set TRUST_PROXY=1 there).
@@ -59,6 +61,19 @@ if (existsSync(clientDist)) {
   app.use(express.static(clientDist))
   app.get('*', (_req, res) => res.sendFile(pathJoin(clientDist, 'index.html')))
 }
+
+// Whatever fails while a request is read (a body that is not JSON, one that is too big) answers with a short JSON
+// message: Express's own error page would show the file paths of the server.
+app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) return next(err)
+  const type = (err as { type?: string }).type
+  if (type === 'entity.too.large') res.status(413).json({ error: 'El texto es demasiado grande.' })
+  else if (type === 'entity.parse.failed') res.status(400).json({ error: 'Eso no es JSON válido.' })
+  else {
+    console.error(err)
+    res.status(500).json({ error: 'Error inesperado.' })
+  }
+})
 
 const broadcast = (room: { code: string }) => {
   const state = rooms.getRoom(room.code)

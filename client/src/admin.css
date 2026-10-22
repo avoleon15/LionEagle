@@ -107,3 +107,5 @@ main.admin.login { display: grid; place-items: center; padding-top: 0; }
   .admin .tiles { grid-template-columns: repeat(2, 1fr); }
   .admin .toolbar select, .admin .toolbar button { flex: 1 1 100%; }
 }
+.editor label small { font-weight: 400; color: var(--muted); }
+.editor label small.warn { color: var(--gold); }

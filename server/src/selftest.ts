@@ -1,5 +1,6 @@
 // Run with: npm run test -w server
 // Checks every question's answer list and the matching rules.
+import { MIN_TOKEN_LENGTH, weakTokenWarning } from './admin'
 import * as db from './db'
 import { buildIndex, match, suggest, validateQuestion } from './matching'
 import { webhookRequest } from './notify'
@@ -452,6 +453,18 @@ for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content 
     }
   }
   check(leaks.length === 0, `hints: none contains a listed answer${leaks.length ? ' (' + leaks.slice(0, 5).join(', ') + ')' : ''}`)
+}
+
+{
+  // the admin backup keeps hints, and importing it back restores them
+  const withHint = db.saveQuestion({ category: 'Prueba export', prompt: 'Nombra una pregunta con pista.', hint: 'Una pista de prueba larga.', answers: [{ label: 'A', points: 10 }] })
+  const backup = db.exportQuestions().find((x) => x.id === withHint.question.id)!
+  check(backup.hint === 'Una pista de prueba larga.', 'export: the backup carries the hint')
+  db.setHint(withHint.question.id, '')
+  db.importQuestions([backup], false)
+  check(db.getQuestion(withHint.question.id)!.hint === 'Una pista de prueba larga.', 'export: importing the backup restores the hint')
+  db.deleteQuestion(withHint.question.id)
+  check(weakTokenWarning('1234') !== null && weakTokenWarning('x'.repeat(MIN_TOKEN_LENGTH)) === null, 'admin token: a short one is warned about, a long one is not')
 }
 
 process.exit(failed ? 1 : 0)

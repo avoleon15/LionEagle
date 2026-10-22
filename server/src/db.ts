@@ -223,6 +223,11 @@ export function listQuestions(f: { category?: string; status?: string; search?: 
   return db.prepare(sql).all(...args).map(toRecord)
 }
 
+/** Everything the admin's backup file keeps, in the same shape the import reads back (hints included). */
+export function exportQuestions() {
+  return listQuestions().map(({ id, category, prompt, status, source, notes, hint, answers }) => ({ id, category, prompt, status, source, notes, hint, answers }))
+}
+
 export function deleteQuestion(id: string): boolean {
   const key = canonicalId(String(id))
   const deleted = Number(db.prepare('DELETE FROM questions WHERE id = ?').run(key).changes) > 0
