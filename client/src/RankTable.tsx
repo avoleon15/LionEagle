@@ -4,7 +4,7 @@ import { Avatar } from './Avatar'
 import { softBreaks } from './nickname'
 
 // The ranking shown between questions: everybody, in the order they had before this round, then the rows slide to
-// their new places and a green arrow (went up) or a red one (went down) appears. Scores count up as the rows move.
+// their new places. A green arrow (went up) or a red one (went down) sits at the right end of the row from the start. Scores count up as the rows move.
 
 const ROW = 42 // px: height of a row plus the gap under it
 const WAIT_MS = 650 // the old order stays on screen this long before the rows start to move
@@ -76,13 +76,10 @@ export function RankTable({ players, scores, gained, me, arrows }: Props) {
   }, [players, scores, gained])
 
   const [moved, setMoved] = useState(false)
-  const [settled, setSettled] = useState(false)
   useEffect(() => {
     const a = setTimeout(() => setMoved(true), WAIT_MS)
-    const b = setTimeout(() => setSettled(true), WAIT_MS + MOVE_MS)
     return () => {
       clearTimeout(a)
-      clearTimeout(b)
     }
   }, [])
 
@@ -98,7 +95,6 @@ export function RankTable({ players, scores, gained, me, arrows }: Props) {
             className={(r.p.id === me ? 'me' : '') + (moved && r.idxNow !== r.idxBefore ? ' moving' : '')}
             style={{ transform: `translateY(${idx * ROW}px)`, zIndex: moved ? rows.length - r.idxNow : 1 }}
           >
-            <span className="arrowslot">{arrows && settled && delta !== 0 && <Arrow up={delta > 0} />}</span>
             <span className={`place p${place}`}>{place}</span>
             <Avatar a={r.p.avatar} size={22} />
             <span className="who">{softBreaks(r.p.nick)}</span>
@@ -106,6 +102,7 @@ export function RankTable({ players, scores, gained, me, arrows }: Props) {
             <b className="score">
               <Count from={r.before} to={r.now} run={moved} />
             </b>
+            <span className="arrowslot">{arrows && delta !== 0 && <Arrow up={delta > 0} />}</span>
           </li>
         )
       })}

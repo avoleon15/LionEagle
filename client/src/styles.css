@@ -432,10 +432,11 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .final .table li { padding: 3px 8px; }
 .final .prompt { font-size: 1.6rem; }
 
-/* home: "Crear sala" and "Unirme" are the same size; Unirme is the bright yellow one */
-.app .maker .join { flex-direction: column; gap: 12px; }
-.app .maker button.create, .app .maker button.joinbtn { width: 100%; }
-.app .maker button.joinbtn { background: #ffe83a; color: var(--ink); box-shadow: inset -3px -3px 0 #d9a800, inset 3px 3px 0 #fffbb0, 4px 4px 0 var(--ink); }
+/* home: the code and "Unirme" (bright yellow) share a row; "Crear sala" goes below, a bit slimmer */
+.app .maker .join { flex-direction: row; gap: 10px; align-items: stretch; }
+.app .maker .join input { flex: 1; min-width: 0; }
+.app .maker button.joinbtn { flex: 0 0 38%; padding: 12px 8px; font-size: 1.15rem; background: #ffe83a; color: var(--ink); box-shadow: inset -3px -3px 0 #d9a800, inset 3px 3px 0 #fffbb0, 4px 4px 0 var(--ink); }
+.app .maker button.create { width: 100%; padding: 9px 14px; font-size: 1.05rem; }
 
 /* the answer box: a grey trash can inside, at the right end, that empties it */
 .answer .inputwrap { position: relative; flex: 1; min-width: 0; display: flex; }
@@ -450,7 +451,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .ranktable li { position: absolute; left: 0; right: 0; height: 38px; display: flex; align-items: center; gap: 6px; padding: 0 8px 0 4px; background: rgba(10, 15, 44, 0.7); transition: transform 0.95s cubic-bezier(0.22, 1, 0.36, 1); }
 .ranktable li.me { background: var(--gold); color: var(--ink); outline: 3px solid #fff2a8; }
 .ranktable li.moving { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25); }
-.ranktable .arrowslot { width: 14px; flex: none; display: grid; place-items: center; }
+.ranktable .arrowslot { width: 14px; flex: none; display: grid; place-items: center; margin-left: 2px; }
 .ranktable .arrow { animation: arrowpop 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
 .ranktable .arrow.up { color: #4fe03a; }
 .ranktable .arrow.down { color: #ff4040; }
