@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { secondsLeft } from '../../shared/clock'
 import { MAX_ANSWER_LENGTH, tierLabel, type GameView, type PlayerView, type RoomState } from '../../shared/protocol'
 import { Avatar } from './Avatar'
-import { RESULT_MS, climbValue, climbing, useClimb, useNow, type Climb } from './climb'
+import { RESULT_MS, climbing, useClimb, useNow, type Climb } from './climb'
+import { RankTable } from './RankTable'
 import { Scene } from './Scene'
 import { socket } from './socket'
 import { splitPrompt } from './prompt'
@@ -258,7 +259,6 @@ function Reveal({ room, game, me }: { room: RoomState; game: GameView; me: strin
   const reveal = game.reveal!
   const gained: Record<string, number> = {}
   for (const r of reveal.results) gained[r.playerId] = r.points
-  const mine = gained[me] ?? 0
   return (
     <section className="box reveal">
       <header className="qhead">
@@ -266,11 +266,7 @@ function Reveal({ room, game, me }: { room: RoomState; game: GameView; me: strin
           Pregunta {game.round + 1}/{game.total}
         </span>
       </header>
-      <div className={`mine ${tierClass(mine)}`}>
-        <span>{mine > 0 ? tierLabel(mine) : 'Sin puntos esta vez'}</span>
-        <b>+{mine}</b>
-      </div>
-      <Table players={room.players} scores={game.scores} me={me} gained={gained} />
+      <RankTable players={room.players} scores={game.scores} gained={gained} me={me} arrows={game.round > 0} />
     </section>
   )
 }
@@ -337,35 +333,10 @@ function Final({ room, game, me, onLeave }: Props) {
   )
 }
 
-/**
- * Top-left scoreboard: you and your neighbours in the ranking (one above and one below; two below if you
- * are first, two above if you are last).
- */
-function Board({ players, scoreOf, me, answered }: { players: PlayerView[]; scoreOf: (id: string) => number; me: string; answered: Set<string> }) {
-  const ranked = players.map((p, i) => ({ p, i, s: scoreOf(p.id) })).sort((a, b) => b.s - a.s || a.i - b.i)
-  const at = Math.max(0, ranked.findIndex((r) => r.p.id === me))
-  const from = Math.max(0, Math.min(at - 1, ranked.length - 3))
-  const rows = ranked.slice(from, from + 3)
-  return (
-    <ol className="board box" aria-label="Puntos">
-      {rows.map((r) => (
-        <li key={r.p.id} className={r.p.id === me ? 'me' : ''}>
-          <span className="rank">{ranked.indexOf(r) + 1}</span>
-          <Avatar a={r.p.avatar} size={16} />
-          <span className="nick">{r.p.id === me ? 'Tú' : r.p.nick}</span>
-          {answered.has(r.p.id) && <span className="tick" aria-label="ya respondió">✓</span>}
-          <b className="pts">{r.s}</b>
-        </li>
-      ))}
-    </ol>
-  )
-}
-
 export function Game(props: Props) {
   const { room, game, me, connected, onLeave } = props
   const now = useNow(60)
   const climb = useClimb(game.scores[me] ?? 0)
-  const shown = Math.round(climbValue(climb, now))
   const rising = climbing(climb, now)
   const finalSeen = useRef(0)
   if (game.stage === 'final' && !finalSeen.current) finalSeen.current = now
@@ -404,7 +375,6 @@ export function Game(props: Props) {
     <main className="play">
       {self && <Scene avatar={self.avatar} climb={climb} focus={focus} launch={game.stage === 'final'} />}
       <div className="hud">
-        <Board players={room.players} scoreOf={(id) => (id === me ? shown : game.scores[id] ?? 0)} me={me} answered={new Set(game.stage === 'answering' ? game.answered : [])} />
         <div className="hud-right">
           {game.stage !== 'final' && (
             <span className="pill-chip">
@@ -426,7 +396,7 @@ export function Game(props: Props) {
       <div className="stage">
         {fresh && <ResultCard points={fresh.points} />}
         {game.stage === 'answering' && !fresh && <Question game={game} me={me} connected={connected} now={now} climb={climb} onResult={setResult} />}
-        {game.stage === 'reveal' && game.reveal && !fresh && !rising && <Reveal room={room} game={game} me={me} />}
+        {game.stage === 'reveal' && game.reveal && !fresh && <Reveal room={room} game={game} me={me} />}
         {showFinal && <Final {...props} />}
       </div>
     </main>

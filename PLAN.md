@@ -35,7 +35,7 @@ Five tiers, as described by the owner: 10, 30, 60, 80, 100. Seven questions per 
 
 1. **Skeleton (done 2026-10-14):** create room, join by 4-letter code or link (`/ABCD`), player list, character picker (placeholder art), host starts the game, reconnect.
 2. **Core round (done 2026-10-14):** 7 questions, server-owned timer, server-side answer matching (ignores accents, case, articles, simple plurals), scoring, reveal screen, final ranking, host returns everyone to the lobby.
-   - Defaults: 30 s per question (owner, 2026-10-15), 9 s reveal. Override with `LE_ROUND_MS` / `LE_REVEAL_MS`.
+   - Defaults: 30 s per question (owner, 2026-10-15), 5 s reveal (the animated ranking table, owner 2026-10-22). Override with `LE_ROUND_MS` / `LE_REVEAL_MS`.
    - The first valid answer locks in for the round and its points count at once (live scores since 2026-10-15). Unlisted answers can be retried up to `MAX_ATTEMPTS`. A round ends early once every connected player has answered.
    - Disconnected players keep their seat and score for 60 s; the round does not wait for them.
    - `server/src/questions.ts` holds 11 **sample** questions with placeholder tiers. They are for testing only; replace them with the owner's questions and researched answer lists.
