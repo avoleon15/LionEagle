@@ -6,7 +6,7 @@ import { sfx } from './sound'
 import { SoundToggle } from './SoundToggle'
 import { Home } from './Home'
 import { Lobby } from './Lobby'
-import { clearSession, loadProfile, loadSession, saveProfile, saveSession, type Profile } from './session'
+import { clearSession, deviceId, loadProfile, loadSession, saveProfile, saveSession, type Profile } from './session'
 import { socket } from './socket'
 
 const codeFromUrl = () => {
@@ -60,7 +60,7 @@ export function App() {
       const prev = loadSession()
       const playerId = prev && code && prev.code === code.toUpperCase() ? prev.playerId : undefined
       // A reply lost with a dropped connection would otherwise leave the buttons disabled forever.
-      socket.timeout(10_000).emit('room:join', { code, nick: p.nick, avatar: p.avatar, playerId }, (err, res) =>
+      socket.timeout(10_000).emit('room:join', { code, nick: p.nick, avatar: p.avatar, playerId, deviceId: deviceId() }, (err, res) =>
         enter(err ? { ok: false, error: 'No se pudo conectar con el servidor. Intenta de nuevo.' } : res),
       )
     },
@@ -82,7 +82,7 @@ export function App() {
         s = null
       }
       if (s && p.nick) {
-        socket.emit('room:join', { code: s.code, nick: p.nick, avatar: p.avatar, playerId: s.playerId }, (res) => {
+        socket.emit('room:join', { code: s.code, nick: p.nick, avatar: p.avatar, playerId: s.playerId, deviceId: deviceId() }, (res) => {
           // The player left (or went to another room) while this was on its way: ignore the answer.
           const now = loadSession()
           if (!now || now.code !== s.code || now.playerId !== s.playerId) return setRestoring(false)

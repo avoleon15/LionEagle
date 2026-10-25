@@ -80,6 +80,20 @@ CREATE TABLE IF NOT EXISTS answer_log (
   ignored INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (question_id, key)
 );
+-- One row per game that started: how many players it had, and when it ended (null if nobody finished it).
+CREATE TABLE IF NOT EXISTS game_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  players INTEGER NOT NULL
+);
+-- One row per browser that played: a hash of a random id the browser made up (no name, no address), to tell new from returning players.
+CREATE TABLE IF NOT EXISTS device_log (
+  device TEXT PRIMARY KEY,
+  first_at INTEGER NOT NULL,
+  last_at INTEGER NOT NULL,
+  games INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS question_stats (
   question_id TEXT PRIMARY KEY,
   asked INTEGER NOT NULL DEFAULT 0,

@@ -99,6 +99,7 @@ export interface JoinPayload {
   nick: string
   avatar: Avatar
   playerId?: string // present when rejoining after a disconnect
+  deviceId?: string // a random id the browser made up, only used to count different players
 }
 
 export interface JoinResult {

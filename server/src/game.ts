@@ -20,6 +20,8 @@ export interface GameHooks {
   active: () => string[]
   /** Called whenever the visible game state changed. */
   changed: () => void
+  /** Called once when the last question is over. */
+  finished?: () => void
 }
 
 export class Game {
@@ -113,6 +115,11 @@ export class Game {
       this.endsAt = 0
       if (this.timer) clearTimeout(this.timer)
       this.timer = null
+      try {
+        this.hooks.finished?.()
+      } catch (e) {
+        console.error('game finished:', e)
+      }
       this.changed()
     } else {
       this.round++

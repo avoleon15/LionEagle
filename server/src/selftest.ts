@@ -2,6 +2,7 @@
 // Checks every question's answer list and the matching rules.
 import { MIN_TOKEN_LENGTH, weakTokenWarning } from './admin'
 import * as backup from './backup'
+import * as metrics from './metrics'
 import * as db from './db'
 import { buildIndex, match, suggest, validateQuestion } from './matching'
 import { webhookRequest } from './notify'
@@ -494,6 +495,36 @@ for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content 
   check(backup.listBackups(dir).some((b) => b.reason === 'antes-de-restaurar'), 'backup: restoring takes a copy of how things were first')
   db.deleteQuestion(keep.question.id)
   rmSync(dir, { recursive: true, force: true })
+}
+
+{
+  // how much the game is played: games, players, different browsers and the most asked questions
+  check(metrics.deviceKey('abc') === null && metrics.deviceKey('x'.repeat(65)) === null && metrics.deviceKey(5) === null, 'metrics: a missing, short, long or non-text browser id counts as nobody')
+  const k1 = metrics.deviceKey('navegador-uno-0001')!
+  const k2 = metrics.deviceKey('navegador-dos-0002')!
+  check(k1 !== k2 && k1 === metrics.deviceKey('navegador-uno-0001') && !k1.includes('navegador'), 'metrics: the same id gives the same short hash, which hides the id')
+  const t = Date.UTC(2026, 9, 22, 18, 0, 0) // noon in Guatemala
+  const before = metrics.overview(t)
+  const g1 = metrics.gameStarted(4, [k1, k2, null], t)
+  metrics.gameFinished(g1, t + 1000)
+  metrics.gameStarted(2, [k1], t + 60_000)
+  const o = metrics.overview(t + 120_000)
+  check(o.games - before.games === 2 && o.finished - before.finished === 1 && o.seats - before.seats === 6, 'metrics: games, finished games and player seats are counted')
+  check(o.devices - before.devices === 2 && o.returning - before.returning === 1, 'metrics: a browser counts once and as returning when it plays again')
+  check(o.byDay.length === 14 && o.byDay[13].games === o.today && o.today - before.today === 2, 'metrics: the day list ends today')
+  const midnight = Date.UTC(2026, 9, 23, 6, 0, 0) // 00:00 in Guatemala
+  metrics.gameStarted(3, [], midnight - 60_000) // 23:59 on the 22nd
+  metrics.gameStarted(3, [], midnight) // 00:00 on the 23rd
+  const days = metrics.overview(midnight + 3_600_000).byDay
+  check(days[13].day === '2026-10-23' && days[12].day === '2026-10-22' && days[13].games === 1 && days[12].games - before.today === 3, 'metrics: days change at midnight Guatemala time (UTC-6)')
+  const mq = db.saveQuestion({ category: 'Prueba métricas', prompt: 'Nombra algo muy preguntado.', status: 'published', answers: [{ label: 'Alfa', points: 10 }, { label: 'Beta', points: 10 }, { label: 'Gamma', points: 30 }, { label: 'Delta', points: 30 }, { label: 'Epsilon', points: 60 }, { label: 'Zeta', points: 100 }] })
+  check(mq.question.status === 'published', 'metrics: the test question is published')
+  stats.recordRound(mq.question.id, 4, 3)
+  stats.recordRound(mq.question.id, 4, 2)
+  const top = metrics.overview(t).topQuestions.find((x) => x.id === mq.question.id)
+  check(top?.asked === 8 && top.answered === 5, 'metrics: the most asked questions come with how many answered')
+  check(metrics.overview(t).categories.some((c) => c.category === 'Prueba métricas' && c.asked === 8), 'metrics: asked counts add up per category')
+  db.deleteQuestion(mq.question.id)
 }
 
 process.exit(failed ? 1 : 0)
