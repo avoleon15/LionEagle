@@ -16,6 +16,8 @@ interface Props {
   scores: Record<string, number>
   /** What each player earned this round. */
   gained: Record<string, number>
+  /** What each player answered this round (null: no valid answer). */
+  answers: Record<string, string | null>
   me: string
   /** Show the arrows (not on the first question: nobody had a place before it). */
   arrows: boolean
@@ -58,7 +60,7 @@ const Arrow = ({ up }: { up: boolean }) => (
   </svg>
 )
 
-export function RankTable({ players, scores, gained, me, arrows }: Props) {
+export function RankTable({ players, scores, gained, answers, me, arrows }: Props) {
   const rows = useMemo(() => {
     const base = players.map((p, i) => ({ p, i, now: scores[p.id] ?? 0, gain: gained[p.id] ?? 0 }))
     const withPrev = base.map((r) => ({ ...r, before: r.now - r.gain }))
@@ -97,7 +99,10 @@ export function RankTable({ players, scores, gained, me, arrows }: Props) {
           >
             <span className={`place p${place}`}>{place}</span>
             <Avatar a={r.p.avatar} size={22} />
-            <span className="who">{softBreaks(r.p.nick)}</span>
+            <span className="who">
+              <span className="nick">{softBreaks(r.p.nick)}</span>
+              <span className={'said' + (answers[r.p.id] ? '' : ' none')}>{answers[r.p.id] ?? 'sin respuesta'}</span>
+            </span>
             <span className={`gain t${r.gain}${moved ? ' on' : ''}`}>+{r.gain}</span>
             <b className="score">
               <Count from={r.before} to={r.now} run={moved} />

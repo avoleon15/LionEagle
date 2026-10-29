@@ -185,6 +185,28 @@ io.on('connection', (socket) => {
     }
   })
 
+  socket.on('chat:send', (send, ack) => {
+    const reply = replier<null>(ack)
+    try {
+      const { room, message } = rooms.chat(socket.id, send)
+      reply({ ok: true, data: null })
+      io.to(room.code).emit('chat:msg', message)
+    } catch (e) {
+      reply({ ok: false, error: errorText(e) })
+    }
+  })
+
+  socket.on('tomato:send', (send, ack) => {
+    const reply = replier<null>(ack)
+    try {
+      const { room, splat } = rooms.tomato(socket.id, send)
+      reply({ ok: true, data: null })
+      io.to(room.code).emit('tomato:splat', splat)
+    } catch (e) {
+      reply({ ok: false, error: errorText(e) })
+    }
+  })
+
   socket.on('game:reset', (ack) => {
     const reply = replier<null>(ack)
     try {

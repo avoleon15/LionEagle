@@ -1,14 +1,22 @@
 import { randomUUID } from 'node:crypto'
 import {
   AVATAR_OPTIONS,
+  CHAT_GAP_MS,
+  CHAT_NAME_MARK,
+  CHAT_PHRASES,
   CODE_LENGTH,
+  TOMATO_GAP_MS,
   QUESTIONS_PER_GAME,
   MAX_NICK,
   MAX_PLAYERS,
   type Avatar,
+  type ChatMessage,
+  type ChatSend,
   type JoinPayload,
   type Phase,
   type RoomState,
+  type TomatoSend,
+  type TomatoSplat,
 } from '../../shared/protocol'
 import { HOST_HANDOVER_MS } from './config'
 import * as db from './db'
@@ -28,6 +36,10 @@ interface Player {
   dropTimer: NodeJS.Timeout | null
   /** Hash of the browser's random id (never sent to anybody): only for counting different players. */
   device: string | null
+  /** When this player last sent a quick message (they are rate limited). */
+  chatAt: number
+  /** When this player last threw a tomato. */
+  tomatoAt: number
 }
 
 interface Room {
@@ -138,7 +150,7 @@ export function join(
 
   if (!p.code) {
     const room: Room = { code: newCode(), hostId: '', phase: 'lobby', players: new Map(), game: null, selected: null, played: new Set(), handoverTimer: null, gameNo: 0 }
-    const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId) }
+    const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId), chatAt: 0, tomatoAt: 0 }
     room.hostId = player.id
     room.players.set(player.id, player)
     rooms.set(room.code, room)
@@ -173,7 +185,7 @@ export function join(
   const taken = [...room.players.values()].some((q) => q.nick.toLowerCase() === nick.toLowerCase())
   if (taken) throw new RoomError('Ese apodo ya está en uso en la sala.')
 
-  const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId) }
+  const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId), chatAt: 0, tomatoAt: 0 }
   room.players.set(player.id, player)
   return { room, player }
 }
@@ -296,6 +308,40 @@ export function setCategories(socketId: string, names: string[]): Room {
   if (chosen.length === 0) throw new RoomError('Elige al menos una categoría.')
   room.selected = chosen.length === available.length ? null : chosen
   return room
+}
+
+/** A quick message: only fixed phrases, only while a game is on (the ones for the end only once it is over). Nothing is stored. */
+export function chat(socketId: string, send: ChatSend): { room: Room; message: ChatMessage } {
+  const found = findBySocket(socketId)
+  const game = found?.room.game
+  if (!found || !game) throw new RoomError('No hay una partida en curso.')
+  const { room, player } = found
+  const phrase = CHAT_PHRASES.find((p) => p.id === String(send?.phrase))
+  if (!phrase) throw new RoomError('Ese mensaje no existe.')
+  const over = game.isFinished()
+  if (phrase.when === 'game' && over) throw new RoomError('Ese mensaje es solo durante la partida.')
+  if (phrase.when === 'end' && !over) throw new RoomError('Ese mensaje es solo al final.')
+  let to: string | undefined
+  if (phrase.text.includes(CHAT_NAME_MARK)) {
+    to = String(send?.to ?? '')
+    if (to === player.id || !room.players.has(to)) throw new RoomError('Elige a quién va dirigido.')
+  }
+  const now = Date.now()
+  if (now - player.chatAt < CHAT_GAP_MS) throw new RoomError('Más despacio.')
+  player.chatAt = now
+  return { room, message: { id: randomUUID(), from: player.id, phrase: phrase.id, ...(to ? { to } : {}) } }
+}
+
+/** A tomato thrown at the podium: only once the game is over, at most one every half second per player. Nothing is stored. */
+export function tomato(socketId: string, send: TomatoSend): { room: Room; splat: TomatoSplat } {
+  const found = findBySocket(socketId)
+  if (!found?.room.game?.isFinished()) throw new RoomError('Los tomates se tiran al final de la partida.')
+  const { room, player } = found
+  const now = Date.now()
+  if (now - player.tomatoAt < TOMATO_GAP_MS * 0.9) throw new RoomError('Más despacio.')
+  player.tomatoAt = now
+  const unit = (n: unknown) => Math.min(1, Math.max(0, Number.isFinite(Number(n)) ? Number(n) : 0.5))
+  return { room, splat: { id: randomUUID(), from: player.id, x: unit(send?.x), y: unit(send?.y) } }
 }
 
 export function answer(socketId: string, text: string) {

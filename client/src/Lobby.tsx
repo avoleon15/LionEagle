@@ -147,6 +147,15 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
               </div>
             )
           })}
+          {/* Teaser of something that is still being built: it can be seen, not picked. */}
+          <div className="group">
+            <div className="grow">
+              <button className="gbtn soon" disabled aria-disabled title="Próximamente">
+                <span className="box-mark" aria-hidden>🚧</span>
+                La Cuarentona <small>próximamente</small>
+              </button>
+            </div>
+          </div>
         </div>
           )}
         </div>
