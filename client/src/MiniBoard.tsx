@@ -28,7 +28,7 @@ function places(sorted: { id: string; s: number }[]): Map<string, number> {
 }
 
 const Arrow = ({ up }: { up: boolean }) => (
-  <svg className={`arrow ${up ? 'up' : 'down'}`} viewBox="0 0 10 7" width="12" height="9" role="img" aria-label={up ? 'subió' : 'bajó'} shapeRendering="crispEdges">
+  <svg className={`arrow ${up ? 'up' : 'down'}`} viewBox="0 0 10 7" width="14" height="10" role="img" aria-label={up ? 'subió' : 'bajó'} shapeRendering="crispEdges">
     <path fill="currentColor" d={up ? 'M5 0h1v1h1v1h1v1h1v1h1v1H0V4h1V3h1V2h1V1h1z' : 'M0 1h10v1H9v1H8v1H7v1H6v1H5V6H4V5H3V4H2V3H1V2H0z'} />
   </svg>
 )
@@ -53,7 +53,7 @@ export function MiniBoard({ players, scores, prev, me, arrows }: Props) {
         return (
           <li key={r.p.id} className={r.p.id === me ? 'me' : ''}>
             <span className={`place p${place}`}>{place}</span>
-            <Avatar a={r.p.avatar} size={18} />
+            <Avatar a={r.p.avatar} size={22} />
             <span className="who">{r.p.nick}</span>
             <span className="arrowslot">{arrows && delta !== 0 && <Arrow up={delta > 0} />}</span>
           </li>

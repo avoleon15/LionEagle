@@ -4,7 +4,6 @@ import { CHAT_PHRASES, MAX_ANSWER_LENGTH, tierLabel, type ChatMessage, type Game
 import { Avatar } from './Avatar'
 import { RESULT_MS, climbing, useClimb, useNow, type Climb } from './climb'
 import { Chat, PhraseText } from './Chat'
-import { chatState } from './chatState'
 import { PlayerName } from './PlayerName'
 import { MiniBoard } from './MiniBoard'
 import { RankTable } from './RankTable'
@@ -258,7 +257,6 @@ function usePodiumBubbles(ids: string[], me: string): Record<string, ChatMessage
   useEffect(() => {
     const onMsg = (msg: ChatMessage) => {
       if (!idsRef.current.includes(msg.from)) return
-      if (chatState.muted && msg.from !== me) return
       setSaid((s) => ({ ...s, [msg.from]: { msg, at: Date.now() } }))
     }
     socket.on('chat:msg', onMsg)
@@ -447,7 +445,7 @@ export function Game(props: Props) {
           </button>
         </div>
       </div>
-      <Chat players={room.players} me={me} ended={game.stage === 'final'} podium={podiumIds(room.players, game.scores)} />
+      <Chat players={room.players} me={me} ended={game.stage === 'final'} deck={game.chatDeck} podium={podiumIds(room.players, game.scores)} />
       <div className="stage">
         {fresh && <ResultCard points={fresh.points} />}
         {game.stage === 'answering' && !fresh && <Question game={game} me={me} connected={connected} now={now} climb={climb} onResult={setResult} />}

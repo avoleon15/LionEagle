@@ -321,6 +321,7 @@ export function chat(socketId: string, send: ChatSend): { room: Room; message: C
   const over = game.isFinished()
   if (phrase.when === 'game' && over) throw new RoomError('Ese mensaje es solo durante la partida.')
   if (phrase.when === 'end' && !over) throw new RoomError('Ese mensaje es solo al final.')
+  if (phrase.when === 'deck' && !game.chatDeckNow().includes(phrase.id)) throw new RoomError('Ese mensaje no está disponible en esta partida.')
   let to: string | undefined
   if (phrase.text.includes(CHAT_NAME_MARK)) {
     to = String(send?.to ?? '')

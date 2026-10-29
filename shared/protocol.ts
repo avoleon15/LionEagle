@@ -61,6 +61,7 @@ export interface GameView {
   scores: Record<string, number>
   prevScores: Record<string, number> // the totals when this round began (scores already include the answers locked in since)
   answered: string[] // players who already locked in this round (never the answers)
+  chatDeck: string[] // ids of the phrases aimed at somebody on offer in this game (more of them once it is over)
   reveal: Reveal | null
   history: RoundRecord[] | null // only in the final stage: what everybody answered in every round
 }
@@ -89,23 +90,41 @@ export interface RoomState {
 
 /**
  * The quick messages players can send, in the style of Clash Royale: fixed phrases, never free text.
- * `{nombre}` marks a phrase aimed at another player (the sender picks who). `when`: during the questions, once the game is over, or both.
+ * `{nombre}` marks a phrase aimed at another player (the sender picks who).
+ * `when`: the ones that are not aimed at anybody are always on offer, during the questions ('game'), once the game is over ('end') or both.
+ * The ones aimed at somebody ('deck') are a pool: each game draws a few of them at random (see GameView.chatDeck).
  */
 export interface ChatPhrase {
   id: string
   text: string
-  when: 'game' | 'end' | 'both'
+  when: 'game' | 'end' | 'both' | 'deck'
 }
 export const CHAT_PHRASES: ChatPhrase[] = [
   { id: 'buena-esa', text: '¡Buena esa!', when: 'game' },
   { id: 'gracias', text: 'Gracias', when: 'both' },
   { id: 'me-equivoque', text: '¡Uy, me equivoqué!', when: 'game' },
-  { id: 'suerte', text: '{nombre}, ¡qué suerte tienes!', when: 'game' },
-  { id: 'trampa', text: '{nombre}, ¡eso fue trampa!', when: 'game' },
-  { id: 'insulto', text: '{nombre}, ¡eres un @#$%&!', when: 'game' },
   { id: 'revancha', text: '¡Revancha!', when: 'end' },
-  { id: 'perdoname', text: 'Perdóname, {nombre}, no fue personal.', when: 'end' },
+  { id: 'suerte', text: '{nombre}, ¡qué suerte tienes!', when: 'deck' },
+  { id: 'trampa', text: '{nombre}, ¡eso fue trampa!', when: 'deck' },
+  { id: 'insulto', text: '{nombre}, ¡eres un @#$%&!', when: 'deck' },
+  { id: 'perdoname', text: 'Perdóname, {nombre}, no fue personal.', when: 'deck' },
+  { id: 'popo', text: '{nombre}, hueles a popo.', when: 'deck' },
+  { id: 'marmol', text: '{nombre}, cara de mármol.', when: 'deck' },
+  { id: 'mono', text: '{nombre}, hueles a mono.', when: 'deck' },
+  { id: 'tamal', text: '{nombre}, tienes menos neuronas que un tamal.', when: 'deck' },
+  { id: 'avion', text: '{nombre}, tu cerebro está en modo avión.', when: 'deck' },
+  { id: 'respirar', text: '{nombre}, tienes cara de que te cobran por respirar.', when: 'deck' },
+  { id: 'pantalla', text: '{nombre}, tienes cara de pantalla rota.', when: 'deck' },
+  { id: 'piedra', text: '{nombre}, hasta una piedra responde más rápido.', when: 'deck' },
+  { id: 'zopilotes', text: '{nombre}, ni los zopilotes quieren tu puesto.', when: 'deck' },
+  { id: 'silencio', text: '{nombre}, te vamos a dedicar un minuto de silencio.', when: 'deck' },
+  { id: 'entrar', text: '{nombre}, tu mejor jugada fue entrar a la sala.', when: 'deck' },
+  { id: 'lento', text: '{nombre}, ¡qué @#$%& tan lento!', when: 'deck' },
+  { id: 'callate', text: '{nombre}, ¡cállate, @#$%&!', when: 'deck' },
 ]
+/** Phrases aimed at somebody drawn for each game: these are on offer all game long, and the extra ones join them once it is over. */
+export const CHAT_DECK_GAME = 4
+export const CHAT_DECK_END = 2
 export const CHAT_NAME_MARK = '{nombre}'
 /** A player can send one message this often. */
 export const CHAT_GAP_MS = 2000

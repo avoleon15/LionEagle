@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CHAT_GAP_MS, CHAT_NAME_MARK, CHAT_PHRASES, type ChatMessage, type ChatPhrase, type PlayerView } from '../../shared/protocol'
 import { Avatar } from './Avatar'
-import { chatState } from './chatState'
+import { ChatIcon } from './PixelIcon'
 import { PlayerName } from './PlayerName'
 import { sfx } from './sound'
 import { socket } from './socket'
@@ -36,26 +36,23 @@ interface Props {
   me: string
   /** The game is over: the end phrases are on offer instead of the in-game ones. */
   ended: boolean
+  /** The phrases aimed at somebody on offer in this game (they change from game to game). */
+  deck: string[]
   /** Players standing on the podium: once the game is over their messages appear over their heads (see Podium), not here. */
   podium: string[]
 }
 
-export function Chat({ players, me, ended, podium }: Props) {
+export function Chat({ players, me, ended, deck, podium }: Props) {
   const [open, setOpen] = useState(false)
   const [picking, setPicking] = useState<ChatPhrase | null>(null)
-  const [muted, setMuted] = useState(false)
   const [bubbles, setBubbles] = useState<Bubble[]>([])
   const [error, setError] = useState('')
   const [wait, setWait] = useState(false)
-  const mutedRef = useRef(muted)
-  mutedRef.current = muted
-  chatState.muted = muted
   const onPodium = useRef({ ended, podium })
   onPodium.current = { ended, podium }
 
   useEffect(() => {
     const onMsg = (msg: ChatMessage) => {
-      if (mutedRef.current && msg.from !== me) return
       if (msg.from !== me) sfx.pop()
       if (onPodium.current.ended && onPodium.current.podium.includes(msg.from)) return
       setBubbles((b) => [...b.slice(-(MAX_BUBBLES - 1)), { msg, at: Date.now() }])
@@ -69,7 +66,10 @@ export function Chat({ players, me, ended, podium }: Props) {
     return () => clearTimeout(id)
   }, [bubbles])
 
-  const phrases = CHAT_PHRASES.filter((p) => p.when === 'both' || p.when === (ended ? 'end' : 'game'))
+  const phrases = [
+    ...CHAT_PHRASES.filter((p) => p.when === 'both' || p.when === (ended ? 'end' : 'game')),
+    ...deck.flatMap((id) => CHAT_PHRASES.filter((p) => p.id === id)),
+  ]
   const others = players.filter((p) => p.id !== me)
   const byId = (id?: string) => players.find((p) => p.id === id)
 
@@ -93,10 +93,10 @@ export function Chat({ players, me, ended, podium }: Props) {
           const phrase = CHAT_PHRASES.find((p) => p.id === msg.phrase)
           if (!from || !phrase) return null
           return (
-            <li key={msg.id} className={msg.from === me ? 'mine' : ''}>
-              <Avatar a={from.avatar} size={16} />
+            <li key={msg.id} className={msg.from === me ? 'own' : ''}>
+              <Avatar a={from.avatar} size={20} />
               <span>
-                <PlayerName p={from} />: <PhraseText phrase={phrase} to={byId(msg.to)} />
+                <PhraseText phrase={phrase} to={byId(msg.to)} />
               </span>
             </li>
           )
@@ -121,14 +121,13 @@ export function Chat({ players, me, ended, podium }: Props) {
                   <PhraseText phrase={p} />
                 </button>
               ))}
-              <button className="link" onClick={() => setMuted((m) => !m)}>{muted ? 'Activar mensajes' : 'Silenciar mensajes'}</button>
             </>
           )}
         </div>
       )}
       {error && <p className="chaterror">{error}</p>}
       <button className="chatbtn" aria-label="Mensajes" aria-expanded={open} disabled={wait && !open} onClick={() => { setOpen((o) => !o); setPicking(null) }}>
-        {muted ? '🔇' : '💬'}
+        <ChatIcon />
       </button>
     </div>
   )

@@ -479,17 +479,17 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 
 /* mini scoreboard in the top-left corner while a question is open */
 .hud-left { min-width: 0; }
-.miniboard { list-style: none; margin: 0; padding: 0; width: min(176px, 46vw); display: flex; flex-direction: column; gap: 1px; text-align: left; }
-.miniboard li { height: 22px; display: flex; align-items: center; gap: 5px; padding: 0 6px 0 4px; background: rgba(10, 15, 44, 0.78); font-size: 0.8rem; }
+.miniboard { list-style: none; margin: 0; padding: 0; width: min(200px, 50vw); display: flex; flex-direction: column; gap: 5px; text-align: left; }
+.miniboard li { height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 8px 0 5px; background: rgba(10, 15, 44, 0.8); font-size: 0.92rem; }
 .miniboard li.me { background: var(--gold); color: var(--ink); outline: 2px solid #fff2a8; }
-.miniboard .place { width: 18px; height: 18px; min-width: 18px; border-width: 1px; font-family: var(--pixel); font-size: 0.8rem; }
+.miniboard .place { width: 22px; height: 22px; min-width: 22px; border-width: 2px; font-family: var(--pixel); font-size: 0.9rem; }
 .miniboard .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.miniboard .arrowslot { width: 12px; flex: none; display: grid; place-items: center; }
+.miniboard .arrowslot { width: 14px; flex: none; display: grid; place-items: center; }
 .miniboard .arrow.up { color: #4fe03a; } .miniboard .arrow.down { color: #ff4040; }
 .miniboard li.me .arrow.up { color: #138a06; } .miniboard li.me .arrow.down { color: #c4001a; }
 
 /* name in the colour of the character; the white one gets a grey border so it can be read */
-.pname { font-weight: 700; text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55); }
+.pname { font: inherit; text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55); }
 .pname.white { color: #fff; text-shadow: -1px -1px 0 #7d8590, 1px -1px 0 #7d8590, -1px 1px 0 #7d8590, 1px 1px 0 #7d8590; }
 
 /* quick messages */
@@ -498,7 +498,7 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .chatbtn { width: 44px; height: 44px; padding: 0; font-size: 1.3rem; line-height: 1; display: grid; place-items: center; }
 .bubbles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; pointer-events: none; max-width: min(300px, 80vw); }
 .bubbles li { display: flex; align-items: flex-start; gap: 6px; padding: 6px 10px; background: rgba(10, 15, 44, 0.92); border: 2px solid var(--rim); box-shadow: 3px 3px 0 var(--ink); color: var(--text); font-size: 0.88rem; line-height: 1.25; text-align: left; animation: bubblein 0.18s ease-out both; }
-.bubbles li.mine { border-color: var(--gold); }
+.bubbles li.own { border-color: var(--gold); }
 .bubbles li > span { min-width: 0; overflow-wrap: anywhere; }
 .chatmenu { display: flex; flex-direction: column; gap: 4px; padding: 8px; width: min(290px, 88vw); background: #0a0f2c; border: 3px solid var(--rim); box-shadow: 4px 4px 0 var(--ink); }
 .chatmenu .kicker { margin: 0 0 2px; }
@@ -528,3 +528,13 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .podium .s2 .saying::after { left: 22px; margin-left: 0; }
 .podium .s3 .saying { left: auto; right: 0; transform: none; }
 .podium .s3 .saying::after { left: auto; right: 22px; margin-left: 0; }
+
+/* pixel icons (tomato and speech bubble) get a one-pixel dark outline like the rest of the pixel art */
+.pixicon { display: block; filter: drop-shadow(1px 0 0 #1b1426) drop-shadow(-1px 0 0 #1b1426) drop-shadow(0 1px 0 #1b1426) drop-shadow(0 -1px 0 #1b1426); }
+.chatbtn .pixicon { filter: none; }
+
+/* icon buttons: the generic button padding must not push the icon off centre */
+.app .chatbtn, .app .tomatobtn { padding: 0; display: grid; place-items: center; line-height: 0; }
+.app .chatbtn { width: 48px; height: 48px; background: var(--gold); border-color: var(--ink); box-shadow: inset -3px -3px 0 var(--gold-dark), inset 3px 3px 0 #fff2a8, 3px 3px 0 var(--ink); }
+.app .chatbtn:active:not(:disabled), .app .chatbtn[aria-expanded='true'] { transform: translate(3px, 3px); box-shadow: inset -3px -3px 0 var(--gold-dark), inset 3px 3px 0 #fff2a8, 0 0 0 var(--ink); }
+.app .tomatobtn { width: 52px; height: 52px; }

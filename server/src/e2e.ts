@@ -197,9 +197,13 @@ const av = { color: 1, face: 2, hat: 4 }
   await sleep(2100)
   check((await emit(A, 'chat:send', { phrase: 'revancha' })).ok === false, 'chat: an end-of-game phrase is refused during the questions')
   check((await emit(A, 'chat:send', { phrase: 'no-existe' })).ok === false, 'chat: a phrase that is not on the list is refused')
-  check((await emit(A, 'chat:send', { phrase: 'suerte' })).ok === false, 'chat: a phrase aimed at somebody needs a target')
-  check((await emit(A, 'chat:send', { phrase: 'suerte', to: ra.data.playerId })).ok === false, 'chat: a player cannot aim a phrase at themselves')
-  check((await emit(A, 'chat:send', { phrase: 'suerte', to: rb.data.playerId })).ok === true, 'chat: a phrase aimed at another player is sent')
+  const deck: string[] = st.game.chatDeck
+  check(deck.length === 4 && new Set(deck).size === 4, 'chat: each game draws four different phrases aimed at somebody')
+  const outside = ['suerte', 'trampa', 'insulto', 'popo', 'marmol', 'mono'].find((id) => !deck.includes(id))!
+  check((await emit(A, 'chat:send', { phrase: outside, to: rb.data.playerId })).ok === false, 'chat: a phrase that was not drawn for this game is refused')
+  check((await emit(A, 'chat:send', { phrase: deck[0] })).ok === false, 'chat: a phrase aimed at somebody needs a target')
+  check((await emit(A, 'chat:send', { phrase: deck[0], to: ra.data.playerId })).ok === false, 'chat: a player cannot aim a phrase at themselves')
+  check((await emit(A, 'chat:send', { phrase: deck[0], to: rb.data.playerId })).ok === true, 'chat: a phrase aimed at another player is sent')
   check((await emit(A, 'tomato:send', { x: 0.5, y: 0.5 })).ok === false, 'tomato: not during the questions')
   // play every round to the end
   for (let i = 0; i < 12 && st.game.stage !== 'final'; i++) {
@@ -211,6 +215,7 @@ const av = { color: 1, face: 2, hat: 4 }
     await sleep(450)
   }
   check(st.game.stage === 'final', 'the test game reaches the final')
+  check(st.game.chatDeck.length === 6 && deck.every((id) => st.game.chatDeck.includes(id)), 'chat: two more aimed phrases join the four at the end')
   await sleep(2100)
   check((await emit(A, 'chat:send', { phrase: 'buena-esa' })).ok === false, 'chat: an in-game phrase is refused once the game is over')
   await sleep(2100)
