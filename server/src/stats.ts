@@ -70,6 +70,7 @@ export interface AnswerStat {
   count: number
   share: number
   suggested: number | null
+  variants: { text: string; count: number }[] // the ways players actually typed it, most common first
 }
 
 export interface Detail {
@@ -80,6 +81,8 @@ export interface Detail {
   answered: number
   validTotal: number
   unknownTotal: number // attempts that were not on the list (not counting ignored ones)
+  avgScore: number | null // mean points of the valid answers typed (null when there are none)
+  tiers: Record<number, number> // valid answers typed, by the tier (points) they are worth
   answers: AnswerStat[]
   unknown: LoggedAnswer[] // sorted by how many times they were tried
 }
@@ -107,12 +110,14 @@ export function detail(id: string): Detail | null {
   }
   const byLabel = new Map<string, number>(q.answers.map((a) => [a.label, 0]))
   const unknown: LoggedAnswer[] = []
+  const variants = new Map<string, { text: string; count: number }[]>()
   let validTotal = 0
   for (const row of loggedRows(id)) {
     const hit = index ? match(index, row.text) : null
     if (hit) {
       byLabel.set(hit.label, (byLabel.get(hit.label) ?? 0) + row.count)
       validTotal += row.count
+      variants.set(hit.label, [...(variants.get(hit.label) ?? []), { text: row.text, count: row.count }])
     } else {
       unknown.push(row)
     }
@@ -122,10 +127,16 @@ export function detail(id: string): Detail | null {
     .map((a) => {
       const count = byLabel.get(a.label) ?? 0
       const share = validTotal ? count / validTotal : 0
-      return { label: a.label, points: a.points, count, share, suggested: enough && count > 0 ? suggestTier(share) : null }
+      return { label: a.label, points: a.points, count, share, suggested: enough && count > 0 ? suggestTier(share) : null, variants: variants.get(a.label) ?? [] }
     })
     .sort((a, b) => b.count - a.count || a.points - b.points)
   const c = counters(id)
+  const tiers: Record<number, number> = { 10: 0, 30: 0, 60: 0, 80: 0, 100: 0 }
+  let points = 0
+  for (const a of answers) {
+    tiers[a.points] = (tiers[a.points] ?? 0) + a.count
+    points += a.points * a.count
+  }
   return {
     id: q.id,
     prompt: q.prompt,
@@ -134,6 +145,8 @@ export function detail(id: string): Detail | null {
     answered: c.answered,
     validTotal,
     unknownTotal: unknown.filter((u) => !u.ignored).reduce((n, u) => n + u.count, 0),
+    avgScore: validTotal ? Math.round((points / validTotal) * 10) / 10 : null,
+    tiers,
     answers,
     unknown,
   }
@@ -148,11 +161,13 @@ export interface OverviewRow {
   answered: number
   validTotal: number
   unknownTotal: number
+  avgScore: number | null
+  wrongShare: number | null // typed attempts that were not on the list, out of all attempts
   topUnknown: { text: string; count: number }[]
   mismatches: number // valid answers whose current tier differs from the one the data suggests
 }
 
-/** Every question that has been played, most missing answers first. */
+/** Every published question (and any other that has been played), most missing answers first. */
 export function overview(): OverviewRow[] {
   const played = new Set<string>([
     ...handle().prepare('SELECT DISTINCT question_id FROM answer_log').all().map((r) => r.question_id as string),
@@ -160,7 +175,12 @@ export function overview(): OverviewRow[] {
   ])
   const rows: OverviewRow[] = []
   for (const q of listQuestions()) {
-    if (!played.has(q.id)) continue
+    if (!played.has(q.id)) {
+      if (q.status === 'published') {
+        rows.push({ id: q.id, prompt: q.prompt, category: q.category, status: q.status, asked: 0, answered: 0, validTotal: 0, unknownTotal: 0, avgScore: null, wrongShare: null, topUnknown: [], mismatches: 0 })
+      }
+      continue
+    }
     const d = detail(q.id)!
     rows.push({
       id: q.id,
@@ -171,6 +191,8 @@ export function overview(): OverviewRow[] {
       answered: d.answered,
       validTotal: d.validTotal,
       unknownTotal: d.unknownTotal,
+      avgScore: d.avgScore,
+      wrongShare: d.validTotal + d.unknownTotal ? d.unknownTotal / (d.validTotal + d.unknownTotal) : null,
       topUnknown: d.unknown.filter((u) => !u.ignored).slice(0, 3).map((u) => ({ text: u.text, count: u.count })),
       mismatches: d.answers.filter((a) => a.suggested !== null && a.suggested !== a.points).length,
     })

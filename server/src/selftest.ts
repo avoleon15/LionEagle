@@ -147,7 +147,12 @@ check(d.answers[0].label === 'Rojo' && d.answers[0].count === 60, 'answers sorte
 check(d.answers.find((a) => a.label === 'Rojo')!.suggested === 10 && d.answers.find((a) => a.label === 'Azul')!.suggested === 10, 'common answers suggest tier 10')
 check(d.answers.find((a) => a.label === 'Amarillo')!.suggested === 30 && d.answers.find((a) => a.label === 'Cian')!.suggested === 60, 'rarer answers suggest higher tiers')
 check(stats.suggestTier(0.5) === 10 && stats.suggestTier(0.05) === 30 && stats.suggestTier(0.02) === 60 && stats.suggestTier(0.005) === 80 && stats.suggestTier(0.001) === 100, 'tier thresholds')
-check(stats.overview().length === 1 && stats.overview()[0].topUnknown[0].text === 'Magenta', 'overview lists the question with its top unknown answer')
+{
+  const row = stats.overview().find((r) => r.id === sq.id)
+  check(!!row && row.topUnknown[0].text === 'Magenta', 'overview lists the question with its top unknown answer')
+  check(!!row && Math.abs(row.wrongShare! - 6 / 106) < 1e-9, 'overview gives the share of attempts that were not on the list')
+  check(d.avgScore !== null && d.tiers[10] === 60 + 32 && d.tiers[30] === 7 && d.tiers[100] === 1 && d.tiers[60] === 0, 'detail counts valid answers per tier and gives the average score')
+}
 
 const added = stats.addFromLog(sq.id, 'Magenta', { points: 100 })
 check(!added.demoted && stats.detail(sq.id)!.unknown.length === 0, 'adding a logged answer makes the history count as valid')
@@ -188,7 +193,7 @@ stats.logAnswer(sq.id, 'brillante')
 stats.setIgnored(sq.id, 'brillante', true)
 check(stats.detail(sq.id)!.unknownTotal === 0 && stats.detail(sq.id)!.unknown[0].ignored, 'ignored answers stop counting as missing')
 stats.resetStats(sq.id)
-check(stats.detail(sq.id)!.validTotal === 0 && stats.overview().length === 0, 'reset clears one question')
+check(stats.detail(sq.id)!.validTotal === 0 && stats.overview().find((r) => r.id === sq.id)?.asked === 0, 'reset clears one question')
 
 // ---- countdown clock (client) ----
 // The state was built when the server's clock read 1_000_000 and arrived when ours read 5_000 (skew = server - local = 995_000).

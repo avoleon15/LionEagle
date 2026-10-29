@@ -32,10 +32,10 @@ interface Overview {
   firstGameAt: number | null
 }
 const BACKUP_REASON: Record<string, string> = { borrar: 'Antes de borrar una pregunta', importar: 'Antes de importar', diaria: 'Copia diaria', 'antes-de-restaurar': 'Antes de restaurar otra copia' }
-interface OverviewRow { id: string; prompt: string; category: string; status: string; asked: number; answered: number; validTotal: number; unknownTotal: number; topUnknown: { text: string; count: number }[]; mismatches: number }
-interface AnswerStat { label: string; points: number; count: number; share: number; suggested: number | null }
+interface OverviewRow { id: string; prompt: string; category: string; status: string; asked: number; answered: number; validTotal: number; unknownTotal: number; avgScore: number | null; wrongShare: number | null; topUnknown: { text: string; count: number }[]; mismatches: number }
+interface AnswerStat { label: string; points: number; count: number; share: number; suggested: number | null; variants: { text: string; count: number }[] }
 interface LoggedAnswer { key: string; text: string; count: number; lastAt: number; ignored: boolean }
-interface StatDetail { id: string; prompt: string; category: string; asked: number; answered: number; validTotal: number; unknownTotal: number; answers: AnswerStat[]; unknown: LoggedAnswer[]; minForSuggestions: number }
+interface StatDetail { id: string; prompt: string; category: string; asked: number; answered: number; validTotal: number; unknownTotal: number; avgScore: number | null; tiers: Record<number, number>; answers: AnswerStat[]; unknown: LoggedAnswer[]; minForSuggestions: number }
 
 const TOKEN_KEY = 'leonaguila.admin'
 /** Hints in the content files stay within this many letters; the server accepts up to 160. */
@@ -167,7 +167,6 @@ function Editor({ token, draft: initial, categories, onSaved, onCancel }: {
         <button onClick={() => save('draft')}>Guardar como borrador</button>
         {d.id && d.status !== 'archived' && <button onClick={() => save('archived')}>Archivar</button>}
         {d.id && <button className="danger" onClick={remove}>Borrar</button>}
-        <button className="link" onClick={onCancel}>Cerrar</button>
       </div>
     </div>
   )
@@ -435,17 +434,69 @@ function ImportExport({ token, refresh }: { token: string; refresh: () => void }
 }
 
 
-function Stats({ token, openQuestion }: { token: string; openQuestion: (id: string) => void }) {
+// ---- charts: plain SVG and divs, no library ----
+
+const TIER_COLOR: Record<number, string> = { 10: 'var(--t10)', 30: 'var(--t30)', 60: 'var(--t60)', 80: 'var(--t80)', 100: 'var(--t100)' }
+
+/** A donut chart with a legend. The centre shows one number (for example the average score). */
+function Pie({ title, slices, centre, unit }: { title: string; slices: { label: string; value: number; color: string }[]; centre?: string; unit?: string }) {
+  const total = slices.reduce((n, s) => n + s.value, 0)
+  const R = 52
+  const C = 2 * Math.PI * R
+  let offset = 0
+  return (
+    <div className="pie">
+      <h3>{title}</h3>
+      <div className="pie-body">
+        <svg viewBox="0 0 140 140" role="img" aria-label={title}>
+          <circle cx="70" cy="70" r={R} fill="none" style={{ stroke: 'var(--field)' }} strokeWidth="26" />
+          {total > 0 && slices.filter((s) => s.value > 0).map((s) => {
+            const len = (s.value / total) * C
+            const el = <circle key={s.label} cx="70" cy="70" r={R} fill="none" style={{ stroke: s.color }} strokeWidth="26" strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-offset} transform="rotate(-90 70 70)" />
+            offset += len
+            return el
+          })}
+          <circle cx="70" cy="70" r="65" fill="none" style={{ stroke: 'var(--ink)' }} strokeWidth="3" />
+          <circle cx="70" cy="70" r="39" fill="none" style={{ stroke: 'var(--ink)' }} strokeWidth="3" />
+          {centre && <text x="70" y="72" textAnchor="middle" className="pie-n">{centre}</text>}
+          {unit && <text x="70" y="90" textAnchor="middle" className="pie-u">{unit}</text>}
+        </svg>
+        <ul>
+          {slices.map((s) => (
+            <li key={s.label} className={s.value === 0 ? 'zero' : ''}>
+              <i style={{ background: s.color }} />
+              <span>{s.label}</span>
+              <b>{s.value}</b>
+              <small>{total ? Math.round((s.value / total) * 100) : 0}%</small>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
+function Meter({ value, max, color }: { value: number; max: number; color?: string }) {
+  return <span className="meter" aria-hidden><i style={{ width: `${max ? Math.max(value > 0 ? 3 : 0, (value / max) * 100) : 0}%`, ...(color ? { background: color } : {}) }} /></span>
+}
+
+const pct = (x: number | null | undefined) => (x === null || x === undefined ? '—' : `${Math.round(x * 100)}%`)
+
+// ---- one question: what players typed ----
+
+type SortKey = 'salen' | 'incorrectas' | 'puntaje'
+
+/** Every published question with how it is doing: how often it comes up, the average score and how many answers miss the list. */
+function Stats({ token, open }: { token: string; open: (id: string) => void }) {
   const [rows, setRows] = useState<OverviewRow[] | null>(null)
-  const [min, setMin] = useState(100)
-  const [open, setOpen] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [category, setCategory] = useState('')
+  const [sort, setSort] = useState<SortKey>('salen')
 
   const load = useCallback(async () => {
     try {
-      const r = await call<{ overview: OverviewRow[]; minForSuggestions: number }>(token, '/stats')
-      setRows(r.overview)
-      setMin(r.minForSuggestions)
+      setRows((await call<{ overview: OverviewRow[] }>(token, '/stats')).overview)
       setError('')
     } catch (e) {
       setError((e as Error).message)
@@ -453,36 +504,56 @@ function Stats({ token, openQuestion }: { token: string; openQuestion: (id: stri
   }, [token])
   useEffect(() => { void load() }, [load])
 
-  if (open) return <StatDetailView token={token} id={open} onBack={() => { setOpen(null); void load() }} openQuestion={openQuestion} />
+  const cats = useMemo(() => [...new Set((rows ?? []).map((r) => r.category))].sort(), [rows])
+  const shown = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    const list = (rows ?? []).filter((r) => (!category || r.category === category) && (!needle || r.prompt.toLowerCase().includes(needle)))
+    const by: Record<SortKey, (r: OverviewRow) => number> = {
+      salen: (r) => r.asked,
+      incorrectas: (r) => r.wrongShare ?? -1,
+      puntaje: (r) => r.avgScore ?? -1,
+    }
+    return [...list].sort((a, b) => by[sort](b) - by[sort](a) || a.prompt.localeCompare(b.prompt))
+  }, [rows, search, category, sort])
+
   return (
     <>
-      <h2>Lo que escriben los jugadores</h2>
-      <p className="hint">
-        Se guarda todo lo que se escribe en cada pregunta (sin guardar quién lo escribió). Lo que no está en la lista aparece como "no válida": si muchos
-        lo intentan, probablemente falta esa respuesta. Con {min} respuestas válidas o más, también se sugiere el nivel según qué tan seguido sale cada respuesta.
-      </p>
+      <h2>Estadísticas por pregunta</h2>
+      <p className="hint">Toca una pregunta para ver lo que escribieron los jugadores, su puntaje y qué respuestas faltan. No se guarda quién escribió qué.</p>
       {error && <p className="error">{error}</p>}
-      {rows && rows.length === 0 && <p className="hint">Todavía no hay partidas jugadas. Cuando se juegue, aquí aparecen las preguntas con sus datos.</p>}
+      <div className="toolbar">
+        <input placeholder="Buscar pregunta…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <select value={category} onChange={(e) => setCategory(e.target.value)}>
+          <option value="">Todas las categorías</option>
+          {cats.map((c) => <option key={c}>{c}</option>)}
+        </select>
+        <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+          <option value="salen">Ordenar: las que más salen</option>
+          <option value="incorrectas">Ordenar: más respuestas incorrectas</option>
+          <option value="puntaje">Ordenar: puntaje promedio</option>
+        </select>
+      </div>
+      {!rows && !error && <p className="hint">Cargando…</p>}
       <ul className="qlist">
-        {rows?.map((r) => (
-          <li key={r.id} onClick={() => setOpen(r.id)}>
+        {shown.map((r) => (
+          <li key={r.id} onClick={() => open(r.id)}>
             <span className="cat-name">{r.category}</span>
-            <span className="q-prompt">
-              {r.prompt}
-              {r.topUnknown.length > 0 && <small>Intentaron y no está: {r.topUnknown.map((u) => `${u.text} (${u.count})`).join(', ')}</small>}
-            </span>
-            <span className="n">{r.answered}/{r.asked} respondieron</span>
-            {r.unknownTotal > 0 && <span className="warn">{r.unknownTotal} no válidas</span>}
-            {r.mismatches > 0 && <span className="warn">{r.mismatches} niveles por revisar</span>}
+            <span className="q-prompt">{r.prompt}</span>
+            <span className="n">{r.asked ? `salió ${r.asked}` : 'sin jugar'}</span>
+            {r.avgScore !== null && <span className="n">promedio {r.avgScore}</span>}
+            {r.wrongShare !== null && r.wrongShare > 0 && <span className="warn">{pct(r.wrongShare)} incorrectas</span>}
           </li>
         ))}
+        {rows && shown.length === 0 && <li className="empty">No hay preguntas con ese filtro.</li>}
       </ul>
-      {rows && rows.length > 0 && (
-        <button className="danger" onClick={async () => {
-          if (!window.confirm('¿Borrar TODOS los datos de partidas? (No borra las preguntas.)')) return
-          await call(token, '/stats', 'DELETE')
-          void load()
-        }}>Borrar todos los datos de partidas</button>
+      {rows && rows.some((r) => r.asked > 0) && (
+        <p>
+          <button className="danger" onClick={async () => {
+            if (!window.confirm('¿Borrar TODOS los datos de partidas? (No borra las preguntas.)')) return
+            await call(token, '/stats', 'DELETE')
+            void load()
+          }}>Borrar todos los datos de partidas</button>
+        </p>
       )}
     </>
   )
@@ -553,12 +624,19 @@ function AddForm({ u, answers, onSave, onCancel }: { u: LoggedAnswer; answers: A
   )
 }
 
-function StatDetailView({ token, id, onBack, openQuestion }: { token: string; id: string; onBack: () => void; openQuestion: (id: string) => void }) {
+function StatDetailView({ token, id, back, openQuestion }: { token: string; id: string; back: () => void; openQuestion: (id: string) => void }) {
   const [d, setD] = useState<StatDetail | null>(null)
   const [adding, setAdding] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
+  const [error, setError] = useState('')
 
-  const load = useCallback(async () => setD(await call<StatDetail>(token, `/stats/${id}`)), [token, id])
+  const load = useCallback(async () => {
+    try {
+      setD(await call<StatDetail>(token, `/stats/${id}`))
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }, [token, id])
   useEffect(() => { void load() }, [load])
 
   const save = async (u: LoggedAnswer, body: Record<string, unknown>) => {
@@ -577,22 +655,62 @@ function StatDetailView({ token, id, onBack, openQuestion }: { token: string; id
     await load()
   }
 
+  if (error) return <p className="error">{error}</p>
   if (!d) return <p className="hint">Cargando…</p>
   const enough = d.validTotal >= d.minForSuggestions
+  const attempts = d.validTotal + d.unknownTotal
+  const maxCount = Math.max(1, ...d.answers.map((a) => a.count))
   return (
     <>
-      <div className="row">
-        <button onClick={onBack}>← Volver</button>
-        <button onClick={() => openQuestion(id)}>Editar la pregunta</button>
-        <button className="danger" onClick={async () => {
-          if (!window.confirm('¿Borrar los datos de esta pregunta?')) return
-          await call(token, `/stats/${id}`, 'DELETE')
-          onBack()
-        }}>Borrar datos de esta pregunta</button>
+      <h2 className="first">{d.prompt}</h2>
+      <p className="hint">{d.category}</p>
+      <div className="tiles">
+        <div className="tile"><b>{d.asked}</b><span>Veces que salió</span></div>
+        <div className="tile"><b>{d.asked ? pct(d.answered / d.asked) : '—'}</b><span>Respondieron</span></div>
+        <div className="tile published"><b>{d.avgScore ?? '—'}</b><span>Puntaje promedio</span></div>
+        <div className="tile suggest"><b>{attempts ? pct(d.unknownTotal / attempts) : '—'}</b><span>Respuestas incorrectas</span></div>
       </div>
-      <h2>{d.prompt}</h2>
-      <p className="hint">{d.category} · {d.answered} de {d.asked} jugadores respondieron · {d.validTotal} intentos válidos · {d.unknownTotal} no válidos</p>
       {msg && <div className="msg warn"><p>{msg}</p></div>}
+
+      <div className="pies">
+        <Pie
+          title="Puntos de las respuestas válidas"
+          centre={d.avgScore === null ? '—' : String(d.avgScore)}
+          unit="promedio"
+          slices={TIERS.map((t) => ({ label: `${t} puntos`, value: d.tiers[t] ?? 0, color: TIER_COLOR[t] }))}
+        />
+        <Pie
+          title="Lo que escribieron"
+          slices={[
+            { label: 'Válidas', value: d.validTotal, color: 'var(--green)' },
+            { label: 'No están en la lista', value: d.unknownTotal, color: 'var(--pink)' },
+          ]}
+        />
+      </div>
+
+      <h2>Todas las respuestas</h2>
+      <p className="hint">
+        {enough
+          ? 'La sugerencia sale de qué parte de las respuestas válidas fue cada una: 8% o más = 10, 3% = 30, 1% = 60, 0.3% = 80, menos = 100.'
+          : `Faltan datos para sugerir niveles (hay ${d.validTotal} de ${d.minForSuggestions} respuestas válidas necesarias).`}
+      </p>
+      <ul className="qlist">
+        {d.answers.map((a) => {
+          const others = a.variants.filter((v) => v.text.toLowerCase() !== a.label.toLowerCase()).slice(0, 4)
+          return (
+            <li key={a.label} className={a.count === 0 ? 'ignored' : ''} style={{ cursor: 'default' }}>
+              <span className="q-prompt">
+                {a.label}
+                {others.length > 0 && <small>también escribieron: {others.map((v) => `${v.text} (${v.count})`).join(', ')}</small>}
+              </span>
+              <Meter value={a.count} max={maxCount} color={TIER_COLOR[a.points]} />
+              <span className="n num">{a.count} · {(a.share * 100).toFixed(1)}%</span>
+              <span className="n">nivel {a.points}</span>
+              {a.suggested !== null && a.suggested !== a.points && <span className="warn">sugerido {a.suggested}</span>}
+            </li>
+          )
+        })}
+      </ul>
 
       <h2>No están en la lista</h2>
       {d.unknown.length === 0 && <p className="hint">Nada por ahora.</p>}
@@ -616,55 +734,53 @@ function StatDetailView({ token, id, onBack, openQuestion }: { token: string; id
         ))}
       </ul>
 
-      <h2>Respuestas de la lista</h2>
-      <p className="hint">
-        {enough
-          ? 'La sugerencia sale de qué parte de las respuestas válidas fue cada una: 8% o más = 10, 3% = 30, 1% = 60, 0.3% = 80, menos = 100.'
-          : `Faltan datos para sugerir niveles (hay ${d.validTotal} de ${d.minForSuggestions} respuestas válidas necesarias).`}
-      </p>
-      <ul className="qlist">
-        {d.answers.filter((a) => a.count > 0).map((a) => (
-          <li key={a.label} style={{ cursor: 'default' }}>
-            <span className="q-prompt">{a.label}</span>
-            <span className="n">{a.count} · {(a.share * 100).toFixed(1)}%</span>
-            <span className="n">nivel {a.points}</span>
-            {a.suggested !== null && a.suggested !== a.points && <span className="warn">sugerido {a.suggested}</span>}
-          </li>
-        ))}
-        {d.answers.every((a) => a.count === 0) && <li className="empty">Todavía nadie escribió una respuesta válida.</li>}
-      </ul>
+      <div className="row end">
+        <button onClick={() => openQuestion(id)}>Editar la pregunta</button>
+        <button className="danger" onClick={async () => {
+          if (!window.confirm('¿Borrar los datos de esta pregunta?')) return
+          await call(token, `/stats/${id}`, 'DELETE')
+          back()
+        }}>Borrar datos de esta pregunta</button>
+      </div>
     </>
   )
 }
 
-/** How much the game is played: games, players, the most asked questions, and what is (and is not) stored. */
-function Summary({ token }: { token: string }) {
+/** The general picture: how much is played, which questions come up most, which are missed most, and how many there are per category. */
+function Dashboard({ token, open }: { token: string; open: (id: string) => void }) {
   const [o, setO] = useState<Overview | null>(null)
+  const [rows, setRows] = useState<OverviewRow[]>([])
   const [error, setError] = useState('')
   useEffect(() => {
     call<Overview>(token, '/metrics').then(setO).catch((e) => setError((e as Error).message))
+    call<{ overview: OverviewRow[] }>(token, '/stats').then((r) => setRows(r.overview)).catch(() => undefined)
   }, [token])
   if (error) return <p className="error">{error}</p>
   if (!o) return <p className="hint">Cargando…</p>
-  const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '—')
+  const ratio = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '—')
   const peak = Math.max(1, ...o.byDay.map((d) => d.games))
-  const maxAsked = Math.max(1, ...o.topQuestions.map((q) => q.asked))
+  const top = o.topQuestions.slice(0, 10)
+  const maxAsked = Math.max(1, ...top.map((q) => q.asked))
+  // Needs a few attempts to mean anything.
+  const missed = rows.filter((r) => r.wrongShare !== null && r.validTotal + r.unknownTotal >= 10 && r.wrongShare > 0)
+    .sort((a, b) => b.wrongShare! - a.wrongShare! || b.unknownTotal - a.unknownTotal).slice(0, 10)
+  const cats = [...o.categories].sort((a, b) => b.questions - a.questions)
+  const maxQ = Math.max(1, ...cats.map((c) => c.questions))
   return (
     <>
       <div className="tiles">
         <div className="tile published"><b>{o.games}</b><span>Partidas jugadas</span></div>
         <div className="tile"><b>{o.devices}</b><span>Jugadores distintos</span></div>
-        <div className="tile"><b>{o.seats}</b><span>Veces que alguien jugó</span></div>
         <div className="tile"><b>{o.avgPlayers}</b><span>Jugadores por partida</span></div>
         <div className="tile"><b>{o.today}</b><span>Partidas hoy</span></div>
         <div className="tile"><b>{o.games7}</b><span>Partidas en 7 días</span></div>
-        <div className="tile"><b>{pct(o.finished, o.games)}</b><span>Llegaron al final</span></div>
-        <div className="tile"><b>{pct(o.returning, o.devices)}</b><span>Volvieron a jugar</span></div>
+        <div className="tile"><b>{ratio(o.finished, o.games)}</b><span>Llegaron al final</span></div>
+        <div className="tile"><b>{ratio(o.returning, o.devices)}</b><span>Volvieron a jugar</span></div>
+        <div className="tile"><b>{o.published}</b><span>Preguntas publicadas</span></div>
       </div>
       <p className="hint">
         {o.firstGameAt ? `Datos desde el ${new Date(o.firstGameAt).toLocaleDateString('es')}. ` : 'Todavía no se ha jugado ninguna partida desde que se empezó a contar. '}
-        “Jugadores distintos” cuenta navegadores o celulares (si alguien juega desde dos aparatos, o borra los datos del navegador, cuenta como otro).
-        “Veces que alguien jugó” cuenta una por cada partida en la que participó cada persona. Nuevos en 7 días: {o.newDevices7}.
+        “Jugadores distintos” cuenta navegadores o celulares: quien juega desde dos aparatos, o borra los datos del navegador, cuenta como otro.
       </p>
 
       <h2>Partidas por día (últimos 14)</h2>
@@ -677,45 +793,77 @@ function Summary({ token }: { token: string }) {
           </div>
         ))}
       </div>
-      <p className="hint">Los días se cuentan a la medianoche de Guatemala.</p>
 
       <h2>Preguntas que más salen</h2>
-      {o.topQuestions.length === 0 && <p className="hint">Todavía no hay datos: aparecen cuando se juegue.</p>}
+      {top.length === 0 && <p className="hint">Todavía no hay datos: aparecen cuando se juegue.</p>}
       <ul className="qlist">
-        {o.topQuestions.map((q, i) => (
-          <li key={q.id} style={{ cursor: 'default' }}>
+        {top.map((q, i) => (
+          <li key={q.id} onClick={() => open(q.id)}>
             <span className="cat-name">{i + 1}</span>
-            <span className="q-prompt">{q.prompt}<small>{q.category} · respondieron {pct(q.answered, q.asked)}</small></span>
-            <span className="meter" aria-hidden><i style={{ width: `${(q.asked / maxAsked) * 100}%` }} /></span>
-            <span className="n">{q.asked} veces</span>
+            <span className="q-prompt">{q.prompt}<small>{q.category}</small></span>
+            <Meter value={q.asked} max={maxAsked} />
+            <span className="n num">{q.asked} veces</span>
           </li>
         ))}
       </ul>
       <p className="hint">{o.neverAsked} de las {o.published} preguntas publicadas todavía no han salido en ninguna partida.</p>
 
-      <h2>Categorías</h2>
+      <h2>Con más respuestas incorrectas</h2>
+      {missed.length === 0 && <p className="hint">Todavía no hay suficientes intentos (se necesitan al menos 10 por pregunta).</p>}
       <ul className="qlist">
-        {o.categories.map((c) => (
+        {missed.map((r, i) => (
+          <li key={r.id} onClick={() => open(r.id)}>
+            <span className="cat-name">{i + 1}</span>
+            <span className="q-prompt">{r.prompt}<small>{r.category}{r.topUnknown.length > 0 ? ` · intentaron: ${r.topUnknown.map((u) => u.text).join(', ')}` : ''}</small></span>
+            <Meter value={r.wrongShare!} max={1} color="var(--pink)" />
+            <span className="n num">{pct(r.wrongShare)}</span>
+          </li>
+        ))}
+      </ul>
+      {missed.length > 0 && <p className="hint">Es la parte de lo que escribieron que no estaba en la lista. Si es alta, probablemente faltan respuestas.</p>}
+
+      <h2>Preguntas por categoría</h2>
+      <ul className="qlist">
+        {cats.map((c) => (
           <li key={c.category} style={{ cursor: 'default' }}>
-            <span className="q-prompt">{c.category}<small>{c.questions} preguntas publicadas</small></span>
-            <span className="n">{c.asked} veces</span>
+            <span className="q-prompt">{c.category}</span>
+            <Meter value={c.questions} max={maxQ} />
+            <span className="n num">{c.questions} preguntas</span>
           </li>
         ))}
       </ul>
 
-      <h2>Qué se guarda de los jugadores</h2>
-      <ul className="stored">
-        <li><b>Sí:</b> cada respuesta que se escribe en una pregunta, sea válida o no, con cuántas veces se escribió. Con eso se calcula qué respuestas de la lista son más comunes y qué falta (pestaña “Respuestas de jugadores”). Hasta 400 textos distintos por pregunta.</li>
-        <li><b>Sí:</b> cuántas veces salió cada pregunta y cuántos la respondieron bien.</li>
-        <li><b>Sí:</b> de cada partida, la fecha, cuántos jugadores tuvo y si llegó al final.</li>
-        <li><b>Sí:</b> un número al azar que cada navegador inventa y guarda; el servidor solo guarda una versión cifrada (hash) para contar jugadores distintos.</li>
-        <li><b>No:</b> apodos, direcciones IP, quién escribió cada respuesta ni qué puntos tuvo cada persona. Las salas y las partidas en curso viven en memoria y se pierden al reiniciar.</li>
-      </ul>
+      <details className="stored-box">
+        <summary>Qué se guarda de los jugadores</summary>
+        <ul className="stored">
+          <li><b>Sí:</b> cada respuesta que se escribe en una pregunta, sea válida o no, con cuántas veces se escribió (hasta 400 textos distintos por pregunta).</li>
+          <li><b>Sí:</b> cuántas veces salió cada pregunta y cuántos la respondieron bien.</li>
+          <li><b>Sí:</b> de cada partida, la fecha, cuántos jugadores tuvo y si llegó al final.</li>
+          <li><b>Sí:</b> un número al azar que cada navegador inventa y guarda; el servidor solo guarda una versión cifrada (hash) para contar jugadores distintos.</li>
+          <li><b>No:</b> apodos, direcciones IP, quién escribió cada respuesta ni qué puntos tuvo cada persona. Las salas y las partidas en curso viven en memoria y se pierden al reiniciar.</li>
+        </ul>
+      </details>
     </>
   )
 }
 
 // ---- shell ----
+
+type Tab = 'resumen' | 'preguntas' | 'estadisticas' | 'sugerencias' | 'importar'
+/** What is on screen: a tab, and inside it a question's statistics or its editor. */
+interface View { tab: Tab; stat: string | null; edit: Draft | null }
+const START: View = { tab: 'resumen', stat: null, edit: null }
+
+const HomeIcon = () => (
+  <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden shapeRendering="crispEdges" fill="currentColor">
+    <path d="M8 1 L0 8h2v7h4v-4h4v4h4V8h2z" />
+  </svg>
+)
+const BackIcon = () => (
+  <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden shapeRendering="crispEdges" fill="currentColor">
+    <path d="M7 2 L1 8l6 6v-4h8V6H7z" />
+  </svg>
+)
 
 export function Admin() {
   const [token, setToken] = useState(stored)
@@ -723,8 +871,8 @@ export function Admin() {
   const [ok, setOk] = useState(false)
   const [error, setError] = useState('')
   const [counts, setCounts] = useState<Counts | null>(null)
-  const [tab, setTab] = useState<'resumen' | 'preguntas' | 'sugerencias' | 'respuestas' | 'importar'>('resumen')
-  const [edit, setEdit] = useState<Draft | null>(null)
+  const [view, setView] = useState<View>(START)
+  const [trail, setTrail] = useState<View[]>([])
 
   const refresh = useCallback(async () => {
     if (!token) return
@@ -745,6 +893,28 @@ export function Admin() {
   }, [token])
   useEffect(() => { void refresh() }, [refresh])
 
+  // Going into a question or an editor remembers where we were, so the arrow can go back one step; the tabs and the house start over.
+  const go = (next: Partial<View>) => {
+    setTrail((t) => [...t, view])
+    setView({ tab: view.tab, stat: null, edit: null, ...next })
+  }
+  const back = () => {
+    const prev = trail[trail.length - 1]
+    if (prev) {
+      setTrail(trail.slice(0, -1))
+      setView(prev)
+    } else {
+      setView({ tab: view.tab, stat: null, edit: null })
+    }
+  }
+  const toTab = (tab: Tab) => { setTrail([]); setView({ tab, stat: null, edit: null }) }
+  const canBack = trail.length > 0 || view.stat !== null || view.edit !== null
+  const openStat = (id: string) => go({ tab: 'estadisticas', stat: id })
+  const openEdit = async (id: string) => {
+    const r = await call<{ question: Question }>(token, `/questions/${id}`)
+    go({ tab: 'preguntas', edit: fromQuestion(r.question) })
+  }
+
   if (!token || !ok) {
     return (
       <main className="admin login">
@@ -763,33 +933,37 @@ export function Admin() {
     )
   }
 
+  const tabButton = (t: Tab, label: string, extra?: React.ReactNode) => (
+    <button className={view.tab === t ? 'on' : ''} onClick={() => toTab(t)}>{label}{extra}</button>
+  )
   return (
     <main className="admin">
       <header className="adminbar">
-        <h1>ALTUS<small>Administrador</small></h1>
-        <nav>
-          <button className={tab === 'resumen' ? 'on' : ''} onClick={() => setTab('resumen')}>Resumen</button>
-          <button className={tab === 'preguntas' ? 'on' : ''} onClick={() => setTab('preguntas')}>Preguntas</button>
-          <button className={tab === 'sugerencias' ? 'on' : ''} onClick={() => setTab('sugerencias')}>
-            Sugerencias{counts && counts.newSuggestions > 0 && <span className="count">{counts.newSuggestions}</span>}
-          </button>
-          <button className={tab === 'respuestas' ? 'on' : ''} onClick={() => setTab('respuestas')}>Respuestas de jugadores</button>
-          <button className={tab === 'importar' ? 'on' : ''} onClick={() => setTab('importar')}>Importar / exportar</button>
+        <div className="barrow">
+          {canBack && <button className="icon" onClick={back} aria-label="Volver" title="Volver"><BackIcon /></button>}
+          <h1>ALTUS<small>Administrador</small></h1>
+          <span className="spacer" />
           <button className="link" onClick={() => { try { sessionStorage.removeItem(TOKEN_KEY) } catch { /* ignore */ } setToken(''); setOk(false) }}>Salir</button>
+          <button className="icon" onClick={() => toTab('resumen')} aria-label="Inicio" title="Inicio"><HomeIcon /></button>
+        </div>
+        <nav>
+          {tabButton('resumen', 'Resumen')}
+          {tabButton('preguntas', 'Preguntas')}
+          {tabButton('estadisticas', 'Estadísticas')}
+          {tabButton('sugerencias', 'Sugerencias', counts && counts.newSuggestions > 0 ? <span className="count">{counts.newSuggestions}</span> : null)}
+          {tabButton('importar', 'Importar / exportar')}
         </nav>
       </header>
       <div className="panel">
-      {tab === 'resumen' && <Summary token={token} />}
-      {tab === 'preguntas' && <Questions token={token} counts={counts} refresh={refresh} edit={edit} setEdit={setEdit} />}
-      {tab === 'sugerencias' && <Suggestions token={token} refresh={refresh} openDraft={(q) => { setEdit(fromQuestion(q)); setTab('preguntas') }} />}
-      {tab === 'respuestas' && (
-        <Stats token={token} openQuestion={async (id) => {
-          const r = await call<{ question: Question }>(token, `/questions/${id}`)
-          setEdit(fromQuestion(r.question))
-          setTab('preguntas')
-        }} />
-      )}
-      {tab === 'importar' && <ImportExport token={token} refresh={refresh} />}
+        {view.tab === 'resumen' && <Dashboard token={token} open={openStat} />}
+        {view.tab === 'preguntas' && (
+          <Questions token={token} counts={counts} refresh={refresh} edit={view.edit} setEdit={(d) => (d ? go({ tab: 'preguntas', edit: d }) : back())} />
+        )}
+        {view.tab === 'estadisticas' && (view.stat
+          ? <StatDetailView key={view.stat} token={token} id={view.stat} back={back} openQuestion={openEdit} />
+          : <Stats token={token} open={openStat} />)}
+        {view.tab === 'sugerencias' && <Suggestions token={token} refresh={refresh} openDraft={(q) => go({ tab: 'preguntas', edit: fromQuestion(q) })} />}
+        {view.tab === 'importar' && <ImportExport token={token} refresh={refresh} />}
       </div>
       {counts?.ip !== undefined && (
         <p className="hint footer">

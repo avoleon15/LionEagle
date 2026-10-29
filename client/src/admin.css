@@ -13,7 +13,7 @@ main.admin {
 main.admin * { box-sizing: border-box; }
 
 /* top bar */
-.admin .adminbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; margin: 0 -16px 18px; padding: 12px 16px; background: var(--panel); border-bottom: 3px solid var(--rim); box-shadow: 0 4px 0 var(--ink); }
+.admin .adminbar { position: sticky; top: 0; z-index: 5; display: flex; flex-direction: column; gap: 10px; margin: 0 -16px 18px; padding: 12px 16px; background: var(--panel); border-bottom: 3px solid var(--rim); box-shadow: 0 4px 0 var(--ink); }
 .admin h1 { margin: 0; font-family: var(--pixel); font-size: 1.7rem; font-weight: 700; letter-spacing: 0.06em; color: var(--gold); text-shadow: 3px 3px 0 var(--ink); }
 .admin h1 small { margin-left: 10px; font-size: 0.8rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--rim); text-shadow: none; }
 .admin h2 { margin: 22px 0 8px; font-family: var(--pixel); font-size: 1.15rem; font-weight: 600; letter-spacing: 0.06em; color: var(--rim); }
@@ -122,3 +122,37 @@ main.admin.login { display: grid; place-items: center; padding-top: 0; }
 .admin .stored { margin: 6px 0 0; padding: 12px 16px 12px 30px; background: var(--panel); border: 3px solid var(--panel-2); display: flex; flex-direction: column; gap: 6px; font-size: 0.92rem; line-height: 1.45; }
 .admin .stored b { color: var(--gold); }
 @media (max-width: 640px) { .admin .meter { display: none; } .admin .bars { gap: 2px; padding: 6px 4px 0; } }
+
+/* top bar: back arrow on the left, sign out and the house on the right */
+.admin .barrow { display: flex; align-items: center; gap: 12px; }
+.admin .barrow .spacer { flex: 1; }
+.admin button.icon { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--gold); }
+.admin h2.first { margin-top: 4px; }
+.admin .row.end { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.admin .num { min-width: 86px; text-align: right; }
+
+/* charts */
+.admin .pies { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; margin-bottom: 4px; }
+.admin .pie { padding: 12px 14px; background: var(--panel); border: 3px solid var(--panel-2); box-shadow: 3px 3px 0 var(--ink); }
+.admin .pie h3 { margin: 0 0 8px; font-family: var(--pixel); font-size: 1rem; font-weight: 600; letter-spacing: 0.05em; color: var(--rim); }
+.admin .pie-body { display: flex; align-items: center; gap: 16px; }
+.admin .pie svg { flex: none; width: 140px; height: 140px; }
+.admin .pie .pie-n { font-family: var(--pixel); font-size: 26px; font-weight: 700; fill: var(--gold); }
+.admin .pie .pie-u { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; fill: var(--muted); }
+.admin .pie ul { flex: 1; min-width: 0; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; font-size: 0.9rem; }
+.admin .pie li { display: flex; align-items: center; gap: 8px; }
+.admin .pie li span { flex: 1; min-width: 0; }
+.admin .pie li i { flex: none; width: 12px; height: 12px; border: 2px solid var(--ink); }
+.admin .pie li small { width: 38px; text-align: right; color: var(--muted); }
+.admin .pie li.zero { opacity: 0.45; }
+
+.admin details.stored-box { margin-top: 22px; }
+.admin details.stored-box summary { cursor: pointer; font-family: var(--pixel); color: var(--rim); letter-spacing: 0.05em; }
+@media (max-width: 640px) {
+  .admin .pie-body { flex-direction: column; align-items: stretch; }
+  .admin .pie svg { align-self: center; }
+  .admin .meter { display: block; flex: 0 0 56px; }
+  .admin .barrow h1 small { display: none; }
+  .admin .num { min-width: 0; text-align: left; }
+  .admin .toolbar select { min-width: 0; max-width: 100%; }
+}
