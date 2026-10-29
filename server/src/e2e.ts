@@ -174,6 +174,57 @@ const av = { color: 1, face: 2, hat: 4 }
   B.close()
 }
 
+// ---- 4a. quick messages and tomatoes ----
+{
+  const A = await connect()
+  const B = await connect()
+  let st: any
+  const seen: any[] = []
+  const splats: any[] = []
+  A.on('room:state', (r: any) => (st = r))
+  B.on('chat:msg', (m: any) => seen.push(m))
+  B.on('tomato:splat', (t: any) => splats.push(t))
+  const ra = await emit(A, 'room:join', { nick: 'Ana', avatar: av })
+  const rb = await emit(B, 'room:join', { code: ra.data.room.code, nick: 'Beto', avatar: av })
+  check((await emit(A, 'chat:send', { phrase: 'buena-esa' })).ok === false, 'chat: nothing can be sent before the game starts')
+  await emit(A, 'game:start')
+  await sleep(200)
+  check((await emit(A, 'chat:send', { phrase: 'buena-esa' })).ok === true, 'chat: an in-game phrase is sent during the questions')
+  await sleep(100)
+  check(seen.length === 1 && seen[0].from === ra.data.playerId && seen[0].phrase === 'buena-esa', 'chat: the others receive who said what')
+  const fast = await emit(A, 'chat:send', { phrase: 'gracias' })
+  check(fast.ok === false && /despacio/.test(fast.error), 'chat: a second message right away is refused')
+  await sleep(2100)
+  check((await emit(A, 'chat:send', { phrase: 'revancha' })).ok === false, 'chat: an end-of-game phrase is refused during the questions')
+  check((await emit(A, 'chat:send', { phrase: 'no-existe' })).ok === false, 'chat: a phrase that is not on the list is refused')
+  check((await emit(A, 'chat:send', { phrase: 'suerte' })).ok === false, 'chat: a phrase aimed at somebody needs a target')
+  check((await emit(A, 'chat:send', { phrase: 'suerte', to: ra.data.playerId })).ok === false, 'chat: a player cannot aim a phrase at themselves')
+  check((await emit(A, 'chat:send', { phrase: 'suerte', to: rb.data.playerId })).ok === true, 'chat: a phrase aimed at another player is sent')
+  check((await emit(A, 'tomato:send', { x: 0.5, y: 0.5 })).ok === false, 'tomato: not during the questions')
+  // play every round to the end
+  for (let i = 0; i < 12 && st.game.stage !== 'final'; i++) {
+    if (st.game.stage === 'answering') {
+      const q = SAMPLE_QUESTIONS.find((x) => x.prompt === st.game.prompt)!
+      await emit(A, 'game:answer', q.answers[0].label)
+      await emit(B, 'game:answer', q.answers[0].label)
+    }
+    await sleep(450)
+  }
+  check(st.game.stage === 'final', 'the test game reaches the final')
+  await sleep(2100)
+  check((await emit(A, 'chat:send', { phrase: 'buena-esa' })).ok === false, 'chat: an in-game phrase is refused once the game is over')
+  await sleep(2100)
+  check((await emit(A, 'chat:send', { phrase: 'revancha' })).ok === true, 'chat: an end-of-game phrase is sent at the end')
+  check((await emit(A, 'tomato:send', { x: 0.3, y: 5 })).ok === true, 'tomato: can be thrown at the end')
+  await sleep(100)
+  check(splats.length === 1 && splats[0].x === 0.3 && splats[0].y === 1, 'tomato: everybody sees it, and the spot is kept inside the podium')
+  check((await emit(A, 'tomato:send', { x: 0.5, y: 0.5 })).ok === false, 'tomato: not twice within half a second')
+  await sleep(600)
+  check((await emit(A, 'tomato:send', { x: 0.5, y: 0.5 })).ok === true, 'tomato: again after half a second')
+  A.close()
+  B.close()
+}
+
 // ---- 4b. host who disconnects, nick on rejoin ----
 {
   const A = await connect()

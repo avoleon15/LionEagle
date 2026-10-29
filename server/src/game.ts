@@ -32,6 +32,7 @@ export class Game {
   private locks = new Map<string, Lock>()
   private lastWrong = new Map<string, number>() // when each player last typed a wrong answer (to slow down guessing)
   private scores = new Map<string, number>()
+  private scoresAtStart = new Map<string, number>() // the totals when the current round began, to see who moved up or down during it
   private reveal: Reveal | null = null
   private history: RoundRecord[] = []
   private timer: NodeJS.Timeout | null = null
@@ -79,6 +80,7 @@ export class Game {
 
   private startRound(notify = true) {
     this.stage = 'answering'
+    this.scoresAtStart = new Map(this.scores)
     this.locks.clear()
     this.lastWrong.clear()
     this.reveal = null
@@ -182,6 +184,8 @@ export class Game {
     const members = new Set(this.hooks.members())
     const scores: Record<string, number> = {}
     for (const [id, s] of this.scores) if (members.has(id)) scores[id] = s
+    const prevScores: Record<string, number> = {}
+    for (const [id, s] of this.scoresAtStart) if (members.has(id)) prevScores[id] = s
     return {
       stage: this.stage,
       round: this.round,
@@ -193,6 +197,7 @@ export class Game {
       durationMs: this.durationMs,
       serverNow: Date.now(),
       scores,
+      prevScores,
       answered: [...this.locks.keys()].filter((id) => members.has(id)),
       reveal: this.reveal,
       history: this.stage === 'final' ? this.history.map((r) => ({ ...r, results: r.results.filter((x) => members.has(x.playerId)) })) : null,
