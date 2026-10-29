@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { TOMATO_GAP_MS, type TomatoSplat } from '../../shared/protocol'
+import { TomatoIcon } from './PixelIcon'
 import { socket } from './socket'
 
 // Once the game is over anybody can throw tomatoes at the winner: each one leaves a red stain and some drops on first place, for everybody.
@@ -39,7 +40,7 @@ export function SplatLayer({ splats }: { splats: TomatoSplat[] }) {
         const lean = ((h >> 16) % 120) - 60
         return (
           <div key={t.id} className="splat" style={{ left: `${t.x * 100}%`, top: `${t.y * 100}%`, ['--lean' as string]: `${lean}px` }}>
-            <span className="flying">🍅</span>
+            <span className="flying"><TomatoIcon size={24} /></span>
             <svg viewBox="0 0 24 24" width="38" height="38" shapeRendering="crispEdges" style={{ transform: `rotate(${rot}deg) scale(${scale})` }}>
               {BODY.map(([x, y, w, hh], i) => <rect key={i} x={x} y={y} width={w} height={hh} fill={i === 3 ? '#9d0208' : '#d00000'} />)}
               <rect x="9" y="9" width="4" height="4" fill="#e85d04" opacity="0.7" />
@@ -64,7 +65,7 @@ export function TomatoButton() {
   }
   return (
     <button className="tomatobtn" disabled={wait} onClick={throwOne} aria-label="Tirar un tomate" title="Tirar un tomate">
-      🍅
+      <TomatoIcon size={34} />
     </button>
   )
 }
