@@ -85,14 +85,21 @@ CREATE TABLE IF NOT EXISTS game_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   started_at INTEGER NOT NULL,
   finished_at INTEGER,
-  players INTEGER NOT NULL
+  players INTEGER NOT NULL,
+  tz TEXT
 );
 -- One row per browser that played: a hash of a random id the browser made up (no name, no address), to tell new from returning players.
 CREATE TABLE IF NOT EXISTS device_log (
   device TEXT PRIMARY KEY,
   first_at INTEGER NOT NULL,
   last_at INTEGER NOT NULL,
-  games INTEGER NOT NULL DEFAULT 0
+  games INTEGER NOT NULL DEFAULT 0,
+  tz TEXT
+);
+-- The last games in detail (kept for the newest 50 only): who played, their scores and what each one answered. JSON.
+CREATE TABLE IF NOT EXISTS game_summary (
+  game_id INTEGER PRIMARY KEY,
+  data TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS question_stats (
   question_id TEXT PRIMARY KEY,
@@ -121,6 +128,13 @@ export function init(path = process.env.DB_PATH ?? join(DATA_DIR, 'lion-eagle.db
     db.exec("ALTER TABLE questions ADD COLUMN hint TEXT NOT NULL DEFAULT ''") // databases made before hints existed
   } catch {
     /* the column is already there */
+  }
+  for (const t of ['game_log', 'device_log']) {
+    try {
+      db.exec(`ALTER TABLE ${t} ADD COLUMN tz TEXT`) // databases made before the time zone was kept
+    } catch {
+      /* the column is already there */
+    }
   }
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM questions').get() as { n: number }
   if (n === 0) {

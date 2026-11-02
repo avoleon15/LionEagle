@@ -153,6 +153,7 @@ export function adminRouter(token: string): express.Router {
   r.post('/archive-samples', wrap(() => ({ archived: db.archiveSamples() })))
 
   r.get('/metrics', wrap(() => metrics.overview()))
+  r.get('/games', wrap(() => ({ games: metrics.lastGames() })))
   r.get('/stats', wrap(() => ({ overview: stats.overview(), minForSuggestions: stats.MIN_FOR_SUGGESTIONS })))
   r.get('/stats/:id', wrap((req) => {
     const d = stats.detail(String(req.params.id))

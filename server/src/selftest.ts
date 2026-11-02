@@ -119,6 +119,41 @@ check(selectQuestions(pool, 5, played).every((q) => !played.has(q.id)), 'skips a
 check(selectQuestions(pool, 7, played).length === 7, 'reuses played ones once fresh ones run out')
 check(selectQuestions(pool.filter((q) => q.category === 'A'), 3, new Set()).length === 3, 'works with a single category')
 
+// uniform exposure: seeded RNG, small categories must not be shown more per question
+let seed = 12345
+const rng = () => ((seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296)
+const big = [...Array(60).keys()].map((i) => mk('q' + i, i < 2 ? 'Tiny' : i < 20 ? 'Mid' : 'Big'))
+const shown = new Map<string, number>()
+let room = new Set<string>()
+let repeats = 0
+let capBroken = 0
+for (let g = 0; g < 6000; g++) {
+  const picks = selectQuestions(big, 7, room, shown, rng)
+  if (picks.some((q) => room.has(q.id))) room = new Set()
+  else if (new Set(picks.map((q) => q.id)).size !== 7) repeats++
+  for (const q of picks) { room.add(q.id); shown.set(q.id, (shown.get(q.id) ?? 0) + 1) }
+}
+for (let g = 0; g < 500; g++) {
+  const picks = selectQuestions(big, 7, new Set(), shown, rng)
+  if (['Tiny', 'Mid', 'Big'].some((c) => picks.filter((q) => q.category === c).length > 4)) capBroken++
+}
+const counts = big.map((q) => shown.get(q.id) ?? 0)
+const avg = counts.reduce((a, b) => a + b, 0) / counts.length
+check(Math.min(...counts) > avg * 0.9 && Math.max(...counts) < avg * 1.1, 'every question is shown about equally often')
+check(repeats === 0, 'no repeats inside a game')
+check(capBroken === 0, 'no category takes more than half of a game')
+// no repeats in a room until the pool is exhausted (60 questions: 8 games of 7 fit before reuse)
+const seen = new Set<string>()
+let roomRepeat = false
+for (let g = 0; g < 8; g++) for (const q of selectQuestions(big, 7, seen, new Map(), rng)) { if (seen.has(q.id)) roomRepeat = true; seen.add(q.id) }
+check(!roomRepeat, 'a room does not see a question twice before the pool runs out')
+// self-correcting: questions with a huge history rest, new ones come first
+const lopsided = new Map(big.map((q, i) => [q.id, i % 2 === 0 ? 1000 : 0] as const))
+const next = selectQuestions(big, 7, new Set(), lopsided, rng)
+check(next.filter((q) => Number(q.id.slice(1)) % 2 === 1).length >= 6, 'questions lagging behind get priority')
+check(selectQuestions(big.slice(0, 3), 7, new Set(), new Map(), rng).length === 3, 'pools smaller than a game return what exists')
+check(selectQuestions(big, 7, new Set(), new Map([['nope', 5]]), rng).length === 7, 'missing or unknown counts are fine')
+
 // symbols that change the meaning of a word
 const langs = buildIndex({ id: 'langs', category: 'x', prompt: 'x', answers: [
   { label: 'C', aliases: [], points: 10 }, { label: 'C++', aliases: ['Cpp'], points: 30 }, { label: 'C#', aliases: ['Csharp'], points: 60 } ] })
@@ -530,6 +565,35 @@ for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content 
   check(top?.asked === 8 && top.answered === 5, 'metrics: the most asked questions come with how many answered')
   check(metrics.overview(t).categories.some((c) => c.category === 'Prueba métricas' && c.asked === 8), 'metrics: asked counts add up per category')
   db.deleteQuestion(mq.question.id)
+
+  // Hours, weekdays, regions, durations and the detail of the last games.
+  const base0 = metrics.overview(t)
+  const gt = Date.UTC(2026, 10, 4, 15, 30) // Wednesday 4 Nov 2026, 09:30 in Guatemala
+  const gz = metrics.gameStarted(2, [k1, k2], gt, ['America/Guatemala', 'America/Guatemala'])
+  metrics.gameFinished(gz, gt + 10 * 60_000)
+  metrics.gameStarted(2, [], gt + 3_600_000, ['Europe/Madrid', null])
+  metrics.gameStarted(2, [], gt + 7_200_000, [null, null])
+  const mo = metrics.overview(t)
+  check(mo.byHour[9].games - base0.byHour[9].games === 1 && mo.byHour[10].games - base0.byHour[10].games === 1 && mo.byHour.length === 24, 'metrics: games per hour use Guatemala time')
+  check(mo.byWeekday[3].games - base0.byWeekday[3].games === 3 && mo.byWeekday.length === 7, 'metrics: games per weekday (0 = Sunday)')
+  const reg = (o: typeof mo, z: string) => o.regions.find((r) => r.zone === z)
+  check((reg(mo, 'America/Guatemala')?.games ?? 0) - (reg(base0, 'America/Guatemala')?.games ?? 0) === 1 && reg(mo, 'America/Guatemala')?.label === 'Guatemala (America/Guatemala)' && reg(mo, 'Europe/Madrid')?.games === 1, 'metrics: games grouped by time zone with a readable label')
+  check(reg(mo, '')?.label === 'Sin dato' && (reg(mo, 'America/Guatemala')?.devices ?? 0) >= 2, 'metrics: games without a zone are "Sin dato"; devices are counted per zone')
+  check(mo.regions.every((r, i, a) => i === 0 || a[i - 1].games >= r.games), 'metrics: regions are sorted by games')
+  check(metrics.zoneLabel('Mars/Olympus') === 'Mars/Olympus', 'metrics: unknown zones show the raw zone')
+  check(mo.avgDurationMin !== null && mo.avgDurationMin > 0, 'metrics: average duration of finished games')
+  const tzOf = (v: unknown) => sanitizeJoin({ nick: 'a', tz: v }).tz
+  check(tzOf(' America/Guatemala ') === 'America/Guatemala' && tzOf('Etc/GMT+6') === 'Etc/GMT+6' && tzOf('a b') === undefined && tzOf('x'.repeat(65)) === undefined && tzOf(5) === undefined && tzOf('<script>') === undefined && tzOf('') === undefined, 'tz: sanitized (text, short, only safe characters)')
+
+  const gs = metrics.gameStarted(3, [], gt + 9_000_000, ['America/Guatemala'])
+  metrics.saveSummary(gs, { players: ['Ana', 'Beto', 'Cata'], rounds: [{ prompt: 'P1', results: [{ nick: 'Ana', answer: 'Uno', points: 30 }, { nick: 'Beto', answer: null, points: 0 }] }, { prompt: 'P2', results: [{ nick: 'Ana', answer: 'Dos', points: 10 }, { nick: 'Beto', answer: 'Tres', points: 40 }] }] })
+  const lg = metrics.lastGames()[0]
+  check(lg.id === gs && lg.region === 'America/Guatemala' && lg.rounds === 2 && lg.finishedAt === null, 'games: newest first with region and rounds so far')
+  check(lg.players.map((p) => `${p.nick}:${p.score}:${p.place}`).join(' ') === 'Ana:40:1 Beto:40:1 Cata:0:3', 'games: scores and places (ties share the lowest number, players ordered by place)')
+  check(lg.players[1].answers[0].answer === null && lg.players[1].answers[1].answer === 'Tres' && lg.players[2].answers[0].answer === null, 'games: no valid answer is null, also for a player who left')
+  for (let i = 0; i < 55; i++) metrics.saveSummary(metrics.gameStarted(2, [], gt + 20_000_000 + i), { players: ['X'], rounds: [] })
+  const kept = metrics.lastGames(100)
+  check(kept.length === 50 && kept[0].id > gs && kept.every((g) => g.id >= kept[49].id), 'games: only the 50 newest keep their detail')
 }
 
 process.exit(failed ? 1 : 0)

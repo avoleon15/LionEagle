@@ -2,8 +2,7 @@ import { randomUUID } from 'node:crypto'
 import {
   AVATAR_OPTIONS,
   CHAT_GAP_MS,
-  CHAT_NAME_MARK,
-  CHAT_PHRASES,
+  CHAT_MAX,
   CODE_LENGTH,
   TOMATO_GAP_MS,
   QUESTIONS_PER_GAME,
@@ -20,7 +19,7 @@ import {
 } from '../../shared/protocol'
 import { HOST_HANDOVER_MS } from './config'
 import * as db from './db'
-import { deviceKey, gameFinished, gameStarted } from './metrics'
+import { cleanZone, deviceKey, gameFinished, gameStarted, saveSummary, type RoundSummary } from './metrics'
 import { Game } from './game'
 import { selectQuestions } from './selection'
 
@@ -36,6 +35,8 @@ interface Player {
   dropTimer: NodeJS.Timeout | null
   /** Hash of the browser's random id (never sent to anybody): only for counting different players. */
   device: string | null
+  /** The browser's time zone, only for the region statistics. */
+  tz: string | null
   /** When this player last sent a quick message (they are rate limited). */
   chatAt: number
   /** When this player last threw a tomato. */
@@ -76,6 +77,7 @@ export function sanitizeJoin(raw: unknown): JoinPayload {
     avatar: (typeof r.avatar === 'object' && r.avatar !== null ? r.avatar : {}) as Avatar,
     playerId: text(r.playerId, 64) || undefined,
     deviceId: text(r.deviceId, 64) || undefined,
+    tz: cleanZone(r.tz),
   }
 }
 
@@ -150,7 +152,7 @@ export function join(
 
   if (!p.code) {
     const room: Room = { code: newCode(), hostId: '', phase: 'lobby', players: new Map(), game: null, selected: null, played: new Set(), handoverTimer: null, gameNo: 0 }
-    const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId), chatAt: 0, tomatoAt: 0 }
+    const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId), tz: p.tz ?? null, chatAt: 0, tomatoAt: 0 }
     room.hostId = player.id
     room.players.set(player.id, player)
     rooms.set(room.code, room)
@@ -170,6 +172,7 @@ export function join(
     if (!clash) existing.nick = nick
     existing.avatar = avatar
     existing.device ??= deviceKey(p.deviceId)
+    existing.tz ??= p.tz ?? null
     if (room.hostId === existing.id && room.handoverTimer) {
       clearTimeout(room.handoverTimer)
       room.handoverTimer = null
@@ -185,7 +188,7 @@ export function join(
   const taken = [...room.players.values()].some((q) => q.nick.toLowerCase() === nick.toLowerCase())
   if (taken) throw new RoomError('Ese apodo ya está en uso en la sala.')
 
-  const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId), chatAt: 0, tomatoAt: 0 }
+  const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId), tz: p.tz ?? null, chatAt: 0, tomatoAt: 0 }
   room.players.set(player.id, player)
   return { room, player }
 }
@@ -276,7 +279,11 @@ export function start(socketId: string): Room {
   if (pool.length < QUESTIONS_PER_GAME) {
     throw new RoomError(`Con esas categorías solo hay ${pool.length} preguntas y se necesitan ${QUESTIONS_PER_GAME}. Elige más categorías.`)
   }
-  const picked = selectQuestions(pool, QUESTIONS_PER_GAME, room.played)
+  // Times each question was asked in all games so far: the selection favours the ones lagging behind.
+  const asked = new Map(
+    db.handle().prepare('SELECT question_id, asked FROM question_stats').all().map((r) => [r.question_id as string, Number(r.asked)] as const),
+  )
+  const picked = selectQuestions(pool, QUESTIONS_PER_GAME, room.played, asked)
   // Create the game first: if it cannot start, the room is still a normal lobby.
   const game = new Game(
     {
@@ -284,10 +291,19 @@ export function start(socketId: string): Room {
       active: () => [...room.players.values()].filter((p) => p.socketId !== null).map((p) => p.id),
       changed: () => notify(room),
       finished: () => gameFinished(gameId),
+      roundDone: (r) => {
+        // Players who left keep their row: nicks are remembered from the moment the game started.
+        const rounds = summary.rounds
+        rounds.push({ prompt: r.prompt, results: r.results.map((x) => ({ nick: nicks.get(x.playerId) ?? '?', answer: x.answer, points: x.points })) })
+        saveSummary(gameId, summary)
+      },
     },
     picked,
   )
-  const gameId = gameStarted(room.players.size, [...room.players.values()].map((p) => p.device))
+  const gameId = gameStarted(room.players.size, [...room.players.values()].map((p) => p.device), Date.now(), [...room.players.values()].map((p) => p.tz))
+  const nicks = new Map([...room.players.values()].map((p) => [p.id, p.nick]))
+  const summary: { players: string[]; rounds: RoundSummary[] } = { players: [...nicks.values()], rounds: [] }
+  saveSummary(gameId, summary)
   if (picked.some((q) => room.played.has(q.id))) room.played.clear() // the room has seen everything: start over
   picked.forEach((q) => room.played.add(q.id))
   room.gameNo++
@@ -310,39 +326,48 @@ export function setCategories(socketId: string, names: string[]): Room {
   return room
 }
 
-/** A quick message: only fixed phrases, only while a game is on (the ones for the end only once it is over). Nothing is stored. */
+/** What is left of a chat text once whitespace is collapsed and control, zero-width and bidi-override characters are gone. */
+function cleanChat(raw: unknown): string {
+  if (typeof raw !== 'string' || raw.length > CHAT_MAX * 8) return '' // way too long to even look at
+  return raw
+    .replace(/\s+/g, ' ')
+    .replace(/[\p{Cc}\u200b\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/gu, '')
+    .trim()
+}
+
+/**
+ * A free chat message: from anybody in a room, at any moment (waiting room, questions, end).
+ * Too long is refused, not cut. Nothing is stored or logged: the text only passes through.
+ */
 export function chat(socketId: string, send: ChatSend): { room: Room; message: ChatMessage } {
   const found = findBySocket(socketId)
-  const game = found?.room.game
-  if (!found || !game) throw new RoomError('No hay una partida en curso.')
+  if (!found) throw new RoomError('No estás en una sala.')
   const { room, player } = found
-  const phrase = CHAT_PHRASES.find((p) => p.id === String(send?.phrase))
-  if (!phrase) throw new RoomError('Ese mensaje no existe.')
-  const over = game.isFinished()
-  if (phrase.when === 'game' && over) throw new RoomError('Ese mensaje es solo durante la partida.')
-  if (phrase.when === 'end' && !over) throw new RoomError('Ese mensaje es solo al final.')
-  if (phrase.when === 'deck' && !game.chatDeckNow().includes(phrase.id)) throw new RoomError('Ese mensaje no está disponible en esta partida.')
-  let to: string | undefined
-  if (phrase.text.includes(CHAT_NAME_MARK)) {
-    to = String(send?.to ?? '')
-    if (to === player.id || !room.players.has(to)) throw new RoomError('Elige a quién va dirigido.')
-  }
+  const text = cleanChat(send?.text)
+  if (!text) throw new RoomError('Escribe algo.')
+  if ([...text].length > CHAT_MAX) throw new RoomError(`Máximo ${CHAT_MAX} caracteres.`)
   const now = Date.now()
   if (now - player.chatAt < CHAT_GAP_MS) throw new RoomError('Más despacio.')
   player.chatAt = now
-  return { room, message: { id: randomUUID(), from: player.id, phrase: phrase.id, ...(to ? { to } : {}) } }
+  return { room, message: { id: randomUUID(), from: player.id, text } }
 }
 
-/** A tomato thrown at the podium: only once the game is over, at most one every half second per player. Nothing is stored. */
+/**
+ * A tomato thrown at a player of the room: in the waiting room or once the game is over (never during the questions),
+ * at most one every half second per thrower. Nothing is stored.
+ */
 export function tomato(socketId: string, send: TomatoSend): { room: Room; splat: TomatoSplat } {
   const found = findBySocket(socketId)
-  if (!found?.room.game?.isFinished()) throw new RoomError('Los tomates se tiran al final de la partida.')
+  if (!found) throw new RoomError('No estás en una sala.')
   const { room, player } = found
+  if (!(room.phase === 'lobby' || room.game?.isFinished())) throw new RoomError('Los tomates se tiran en la sala de espera y al final de la partida.')
+  const at = typeof send?.at === 'string' ? send.at : ''
+  if (!room.players.has(at)) throw new RoomError('Ese jugador no está en la sala.')
   const now = Date.now()
   if (now - player.tomatoAt < TOMATO_GAP_MS * 0.9) throw new RoomError('Más despacio.')
   player.tomatoAt = now
   const unit = (n: unknown) => Math.min(1, Math.max(0, Number.isFinite(Number(n)) ? Number(n) : 0.5))
-  return { room, splat: { id: randomUUID(), from: player.id, x: unit(send?.x), y: unit(send?.y) } }
+  return { room, splat: { id: randomUUID(), from: player.id, at, x: unit(send?.x), y: unit(send?.y) } }
 }
 
 export function answer(socketId: string, text: string) {

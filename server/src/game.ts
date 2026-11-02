@@ -1,4 +1,4 @@
-import { CHAT_DECK_END, CHAT_DECK_GAME, CHAT_PHRASES, MAX_ANSWER_LENGTH, QUESTIONS_PER_GAME, type AnswerResult, type GameStage, type GameView, type Reveal, type RoundRecord } from '../../shared/protocol'
+import { MAX_ANSWER_LENGTH, QUESTIONS_PER_GAME, type AnswerResult, type GameStage, type GameView, type Reveal, type RoundRecord } from '../../shared/protocol'
 import { REVEAL_MS, ROUND_MS } from './config'
 import { buildIndex, match, suggest, type Index, type Question } from './matching'
 import { logAnswer, recordRound } from './stats'
@@ -22,6 +22,8 @@ export interface GameHooks {
   changed: () => void
   /** Called once when the last question is over. */
   finished?: () => void
+  /** Called after each round with what everybody answered (also for games that are abandoned later). */
+  roundDone?: (r: { prompt: string; results: { playerId: string; answer: string | null; points: number }[] }) => void
 }
 
 export class Game {
@@ -36,8 +38,6 @@ export class Game {
   private reveal: Reveal | null = null
   private history: RoundRecord[] = []
   private timer: NodeJS.Timeout | null = null
-  /** The phrases aimed at somebody drawn for this game: the first ones from the start, the rest only once it is over. */
-  private readonly chatDeck: string[]
   private readonly questions: Question[]
   private readonly indexes: Index[]
   private index: Index
@@ -46,12 +46,6 @@ export class Game {
   constructor(private hooks: GameHooks, questions: Question[]) {
     if (questions.length < QUESTIONS_PER_GAME) throw new GameError('No hay suficientes preguntas.')
     this.questions = questions
-    const pool = CHAT_PHRASES.filter((p) => p.when === 'deck').map((p) => p.id)
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[pool[i], pool[j]] = [pool[j], pool[i]]
-    }
-    this.chatDeck = pool.slice(0, CHAT_DECK_GAME + CHAT_DECK_END)
     // Built up front: a list that became inconsistent fails here, not in the middle of the game.
     this.indexes = questions.map((q) => buildIndex(q))
     this.index = this.indexes[0]
@@ -112,6 +106,11 @@ export class Game {
     const present = new Set(this.hooks.active())
     recordRound(this.question.id, results.filter((r) => r.answer !== null || present.has(r.playerId)).length, results.filter((r) => r.answer !== null).length)
     this.history.push({ prompt: this.question.prompt, category: this.question.category, results })
+    try {
+      this.hooks.roundDone?.({ prompt: this.question.prompt, results })
+    } catch (e) {
+      console.error('round summary:', e)
+    }
     this.reveal = { results, top }
     this.stage = 'reveal'
     this.schedule(REVEAL_MS, () => this.next())
@@ -183,11 +182,6 @@ export class Game {
     return this.stage === 'final'
   }
 
-  /** The phrases aimed at somebody that can be sent right now. */
-  chatDeckNow(): string[] {
-    return this.chatDeck.slice(0, this.isFinished() ? CHAT_DECK_GAME + CHAT_DECK_END : CHAT_DECK_GAME)
-  }
-
   dispose() {
     if (this.timer) clearTimeout(this.timer)
     this.timer = null
@@ -212,7 +206,6 @@ export class Game {
       scores,
       prevScores,
       answered: [...this.locks.keys()].filter((id) => members.has(id)),
-      chatDeck: this.chatDeckNow(),
       reveal: this.reveal,
       history: this.stage === 'final' ? this.history.map((r) => ({ ...r, results: r.results.filter((x) => members.has(x.playerId)) })) : null,
     }

@@ -61,7 +61,6 @@ export interface GameView {
   scores: Record<string, number>
   prevScores: Record<string, number> // the totals when this round began (scores already include the answers locked in since)
   answered: string[] // players who already locked in this round (never the answers)
-  chatDeck: string[] // ids of the phrases aimed at somebody on offer in this game (more of them once it is over)
   reveal: Reveal | null
   history: RoundRecord[] | null // only in the final stage: what everybody answered in every round
 }
@@ -88,62 +87,28 @@ export interface RoomState {
   selected: string[] // lobby only: the categories chosen for the next game
 }
 
-/**
- * The quick messages players can send, in the style of Clash Royale: fixed phrases, never free text.
- * `{nombre}` marks a phrase aimed at another player (the sender picks who).
- * `when`: the ones that are not aimed at anybody are always on offer, during the questions ('game'), once the game is over ('end') or both.
- * The ones aimed at somebody ('deck') are a pool: each game draws a few of them at random (see GameView.chatDeck).
- */
-export interface ChatPhrase {
-  id: string
-  text: string
-  when: 'game' | 'end' | 'both' | 'deck'
-}
-export const CHAT_PHRASES: ChatPhrase[] = [
-  { id: 'buena-esa', text: '¡Buena esa!', when: 'game' },
-  { id: 'gracias', text: 'Gracias', when: 'both' },
-  { id: 'me-equivoque', text: '¡Uy, me equivoqué!', when: 'game' },
-  { id: 'revancha', text: '¡Revancha!', when: 'end' },
-  { id: 'suerte', text: '{nombre}, ¡qué suerte tienes!', when: 'deck' },
-  { id: 'trampa', text: '{nombre}, ¡eso fue trampa!', when: 'deck' },
-  { id: 'insulto', text: '{nombre}, ¡eres un @#$%&!', when: 'deck' },
-  { id: 'perdoname', text: 'Perdóname, {nombre}, no fue personal.', when: 'deck' },
-  { id: 'popo', text: '{nombre}, hueles a popo.', when: 'deck' },
-  { id: 'marmol', text: '{nombre}, cara de mármol.', when: 'deck' },
-  { id: 'mono', text: '{nombre}, hueles a mono.', when: 'deck' },
-  { id: 'tamal', text: '{nombre}, tienes menos neuronas que un tamal.', when: 'deck' },
-  { id: 'avion', text: '{nombre}, tu cerebro está en modo avión.', when: 'deck' },
-  { id: 'respirar', text: '{nombre}, tienes cara de que te cobran por respirar.', when: 'deck' },
-  { id: 'pantalla', text: '{nombre}, tienes cara de pantalla rota.', when: 'deck' },
-  { id: 'piedra', text: '{nombre}, hasta una piedra responde más rápido.', when: 'deck' },
-  { id: 'zopilotes', text: '{nombre}, ni los zopilotes quieren tu puesto.', when: 'deck' },
-  { id: 'silencio', text: '{nombre}, te vamos a dedicar un minuto de silencio.', when: 'deck' },
-  { id: 'entrar', text: '{nombre}, tu mejor jugada fue entrar a la sala.', when: 'deck' },
-  { id: 'lento', text: '{nombre}, ¡qué @#$%& tan lento!', when: 'deck' },
-  { id: 'callate', text: '{nombre}, ¡cállate, @#$%&!', when: 'deck' },
-]
-/** Phrases aimed at somebody drawn for each game: these are on offer all game long, and the extra ones join them once it is over. */
-export const CHAT_DECK_GAME = 4
-export const CHAT_DECK_END = 2
-export const CHAT_NAME_MARK = '{nombre}'
+/** Free chat: any short text, in the waiting room, during the game and at the end. Nothing is stored. */
+export const CHAT_MAX = 120
 /** A player can send one message this often. */
-export const CHAT_GAP_MS = 2000
+export const CHAT_GAP_MS = 1500
 
 export interface ChatSend {
-  phrase: string
-  to?: string // the player a {nombre} phrase is aimed at
+  text: string
 }
 
 export interface ChatMessage {
   id: string
   from: string
-  phrase: string
-  to?: string
+  text: string
 }
 
-/** Tomatoes thrown at the winner once the game is over. x and y are where it lands, from 0 to 1 across the first-place step. */
+/**
+ * Tomatoes thrown at a player: in the waiting room (at anybody in the crowd) and once the game is over (at anybody on the podium).
+ * `at` is the player it hits; x and y are where it lands, from 0 to 1 across that player's step (or slot).
+ */
 export const TOMATO_GAP_MS = 500
 export interface TomatoSend {
+  at: string
   x: number
   y: number
 }
@@ -166,6 +131,7 @@ export interface JoinPayload {
   avatar: Avatar
   playerId?: string // present when rejoining after a disconnect
   deviceId?: string // a random id the browser made up, only used to count different players
+  tz?: string // the browser's time zone (e.g. America/Guatemala): the only region data kept, never an address
 }
 
 export interface JoinResult {
