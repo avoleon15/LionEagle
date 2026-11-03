@@ -439,11 +439,35 @@ function Backups({ token, refresh }: { token: string; refresh: () => void }) {
   )
 }
 
+interface ImportReport { created: number; updated: number; drafts: { id: string; problems: string[] }[]; errors: { index: number; error: string }[] }
+/** A JSON file chosen for import: the questions it holds, or why it cannot be used. */
+interface PickedFile { name: string; size: number; list: unknown[] | null; error?: string }
+
+/** One request must stay under the server's 2 MB body limit, so long lists go in several. */
+const CHUNK_BYTES = 1_400_000
+function chunksOf(list: unknown[]): unknown[][] {
+  const out: unknown[][] = []
+  let cur: unknown[] = []
+  let size = 2
+  for (const q of list) {
+    const n = JSON.stringify(q).length + 1
+    if (size + n > CHUNK_BYTES && cur.length > 0) { out.push(cur); cur = []; size = 2 }
+    cur.push(q)
+    size += n
+  }
+  if (cur.length > 0) out.push(cur)
+  return out
+}
+
 function ImportExport({ token, refresh }: { token: string; refresh: () => void }) {
   const [text, setText] = useState('')
   const [publish, setPublish] = useState(true)
-  const [report, setReport] = useState<{ created: number; updated: number; drafts: { id: string; problems: string[] }[]; errors: { index: number; error: string }[] } | null>(null)
+  const [report, setReport] = useState<ImportReport | null>(null)
   const [error, setError] = useState('')
+  const [files, setFiles] = useState<PickedFile[]>([])
+  const [busy, setBusy] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const [fileReports, setFileReports] = useState<{ name: string; report: ImportReport }[]>([])
 
   const doImport = async () => {
     setError(''); setReport(null)
@@ -455,6 +479,46 @@ function ImportExport({ token, refresh }: { token: string; refresh: () => void }
       setError(e instanceof SyntaxError ? 'Ese texto no es JSON válido.' : (e as Error).message)
     }
   }
+
+  /** Reads the chosen .json files (several at once); each one holds a list of questions or { questions: [...] }. */
+  const pick = async (chosen: FileList | File[]) => {
+    setError(''); setFileReports([])
+    const read = await Promise.all(Array.from(chosen).map(async (f): Promise<PickedFile> => {
+      try {
+        const data = JSON.parse(await f.text())
+        const list = Array.isArray(data) ? data : data?.questions
+        if (!Array.isArray(list)) return { name: f.name, size: f.size, list: null, error: 'No trae una lista de preguntas.' }
+        return { name: f.name, size: f.size, list }
+      } catch {
+        return { name: f.name, size: f.size, list: null, error: 'No es un JSON válido.' }
+      }
+    }))
+    setFiles((cur) => [...cur.filter((c) => !read.some((r) => r.name === c.name)), ...read])
+  }
+
+  const importFiles = async () => {
+    setError(''); setFileReports([]); setBusy(true)
+    const done: { name: string; report: ImportReport }[] = []
+    try {
+      for (const f of files.filter((x) => x.list)) {
+        const total: ImportReport = { created: 0, updated: 0, drafts: [], errors: [] }
+        for (const chunk of chunksOf(f.list!)) {
+          const r = await call<ImportReport>(token, '/import', 'POST', { questions: chunk, publish })
+          total.created += r.created; total.updated += r.updated
+          total.drafts.push(...r.drafts); total.errors.push(...r.errors)
+        }
+        done.push({ name: f.name, report: total })
+        setFileReports([...done])
+      }
+      setFiles([])
+      refresh()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const doExport = async () => {
     const r = await call<{ questions: unknown[] }>(token, '/export')
     const url = URL.createObjectURL(new Blob([JSON.stringify(r.questions, null, 2)], { type: 'application/json' }))
@@ -465,6 +529,9 @@ function ImportExport({ token, refresh }: { token: string; refresh: () => void }
     URL.revokeObjectURL(url)
   }
 
+  const usable = files.filter((f) => f.list)
+  const questionsInFiles = usable.reduce((n, f) => n + f.list!.length, 0)
+
   return (
     <>
       <h2>Exportar</h2>
@@ -472,10 +539,46 @@ function ImportExport({ token, refresh }: { token: string; refresh: () => void }
       <button onClick={doExport}>Descargar JSON</button>
       <Backups token={token} refresh={refresh} />
       <h2>Importar</h2>
-      <p className="hint">Pega una lista de preguntas. Si una pregunta tiene el mismo <code>id</code> que una existente, la reemplaza. Formato:</p>
+      <p className="hint">Si una pregunta tiene el mismo <code>id</code> que una existente, la reemplaza. Antes de importar se guarda una copia de seguridad automática. Puedes subir <b>varios archivos JSON a la vez</b>, o pegar el texto más abajo.</p>
+
+      <label
+        className={'dropzone' + (dragging ? ' on' : '')}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => { e.preventDefault(); setDragging(false); void pick(e.dataTransfer.files) }}
+      >
+        <input type="file" accept=".json,application/json" multiple onChange={(e) => { if (e.target.files) void pick(e.target.files); e.target.value = '' }} />
+        <b>Elegir archivos JSON</b>
+        <span>o arrástralos aquí</span>
+      </label>
+      {files.length > 0 && (
+        <ul className="qlist">
+          {files.map((f) => (
+            <li key={f.name} style={{ cursor: 'default' }}>
+              <span className="q-prompt">{f.name}<small>{f.list ? `${f.list.length} preguntas · ${(f.size / 1024).toFixed(0)} KB` : f.error}</small></span>
+              <button className="link" onClick={() => setFiles((cur) => cur.filter((x) => x.name !== f.name))}>Quitar</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <label className="check"><input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} /> Publicar las que estén completas (las incompletas quedan como borrador)</label>
+      {files.length > 0 && (
+        <button className="primary" disabled={busy || usable.length === 0} onClick={importFiles}>
+          {busy ? 'Importando…' : `Importar ${questionsInFiles} preguntas de ${usable.length} ${usable.length === 1 ? 'archivo' : 'archivos'}`}
+        </button>
+      )}
+      {fileReports.map(({ name, report: r }) => (
+        <div key={name} className="msg ok">
+          <p><b>{name}</b>: {r.created} nuevas, {r.updated} reemplazadas.</p>
+          {r.drafts.map((d) => <p key={d.id}>Borrador "{d.id}": {d.problems.join(' ')}</p>)}
+          {r.errors.map((e) => <p key={e.index}>Error en la pregunta {e.index + 1}: {e.error}</p>)}
+        </div>
+      ))}
+
+      <h2>Pegar texto</h2>
+      <p className="hint">Formato:</p>
       <pre>{EXAMPLE}</pre>
       <textarea rows={10} value={text} onChange={(e) => setText(e.target.value)} placeholder="[ … ]" />
-      <label className="check"><input type="checkbox" checked={publish} onChange={(e) => setPublish(e.target.checked)} /> Publicar las que estén completas (las incompletas quedan como borrador)</label>
       <button className="primary" disabled={!text.trim()} onClick={doImport}>Importar</button>
       {error && <p className="error">{error}</p>}
       {report && (

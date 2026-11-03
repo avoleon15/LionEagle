@@ -244,3 +244,9 @@ main.admin.login { display: grid; place-items: center; padding-top: 0; }
 /* search box inside the "Respuestas correctas" dropdown */
 .admin .foldsearch { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
 .admin .foldsearch input { flex: 1; min-width: 0; }
+
+/* drop area for importing several JSON files at once */
+.admin .dropzone { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px; margin: 6px 0 10px; text-align: center; cursor: pointer; background: var(--panel); border: 3px dashed var(--panel-2); color: var(--muted); }
+.admin .dropzone b { color: var(--gold); font-size: 1rem; }
+.admin .dropzone:hover, .admin .dropzone.on { border-color: var(--gold); }
+.admin .dropzone input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
