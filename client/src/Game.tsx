@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { secondsLeft } from '../../shared/clock'
-import { CHAT_PHRASES, MAX_ANSWER_LENGTH, tierLabel, type ChatMessage, type GameView, type PlayerView, type RoomState } from '../../shared/protocol'
+import { MAX_ANSWER_LENGTH, tierLabel, type ChatMessage, type GameView, type PlayerView, type RoomState } from '../../shared/protocol'
 import { Avatar } from './Avatar'
 import { RESULT_MS, climbing, useClimb, useNow, type Climb } from './climb'
-import { Chat, PhraseText } from './Chat'
-import { PlayerName } from './PlayerName'
+import { Chat, SHOW_MS } from './Chat'
 import { MiniBoard } from './MiniBoard'
 import { RankTable } from './RankTable'
 import { Scene } from './Scene'
 import { socket } from './socket'
 import { splitPrompt } from './prompt'
 import { sfx } from './sound'
-import { SplatLayer, TomatoButton, useSplats } from './Tomato'
+import { SplatLayer, TomatoButton, useSplats, useThrower } from './Tomato'
 import { SoundToggle } from './SoundToggle'
 
 interface Props {
@@ -243,14 +242,19 @@ function Table({ players, scores, me, gained }: { players: PlayerView[]; scores:
   )
 }
 
-/** The three players standing on the podium, best first (same order and tie-break as the podium itself). */
-const podiumIds = (players: PlayerView[], scores: Record<string, number>) =>
-  players.map((p, i) => ({ p, i, s: scores[p.id] ?? 0 })).sort((a, b) => b.s - a.s || a.i - b.i).slice(0, 3).map((r) => r.p.id)
-
-const BUBBLE_MS = 3600
+/**
+ * The players standing on the podium: the best three, in rank order (ties keep the join order). `place` is the PLACE, so players
+ * with the same score share it and the lowest number (100, 100, 50 are places 1, 1, 3). When a tie runs past the third slot
+ * (100, 50, 50, 50) only the first three of the tied players fit; the full table below shows everybody.
+ */
+function podiumOf(players: PlayerView[], scores: Record<string, number>) {
+  const ranked = players.map((p, i) => ({ p, i, s: scores[p.id] ?? 0 })).sort((a, b) => b.s - a.s || a.i - b.i)
+  return ranked.slice(0, 3).map((r) => ({ ...r, place: ranked.findIndex((x) => x.s === r.s) + 1 }))
+}
+const podiumIds = (players: PlayerView[], scores: Record<string, number>) => podiumOf(players, scores).map((r) => r.p.id)
 
 /** What the players on the podium said lately, to show over their heads (one bubble each, the newest). */
-function usePodiumBubbles(ids: string[], me: string): Record<string, ChatMessage> {
+function usePodiumBubbles(ids: string[]): Record<string, ChatMessage> {
   const [said, setSaid] = useState<Record<string, { msg: ChatMessage; at: number }>>({})
   const idsRef = useRef(ids)
   idsRef.current = ids
@@ -261,37 +265,46 @@ function usePodiumBubbles(ids: string[], me: string): Record<string, ChatMessage
     }
     socket.on('chat:msg', onMsg)
     return () => void socket.off('chat:msg', onMsg)
-  }, [me])
+  }, [])
   useEffect(() => {
     if (Object.keys(said).length === 0) return
-    const id = setTimeout(() => setSaid((s) => Object.fromEntries(Object.entries(s).filter(([, v]) => Date.now() - v.at < BUBBLE_MS))), BUBBLE_MS)
+    const id = setTimeout(() => setSaid((s) => Object.fromEntries(Object.entries(s).filter(([, v]) => Date.now() - v.at < SHOW_MS))), SHOW_MS)
     return () => clearTimeout(id)
   }, [said])
   return Object.fromEntries(Object.entries(said).map(([id, v]) => [id, v.msg]))
 }
 
-/** The final podium: first place in the middle and tallest, second on its left, third on its right. */
+/**
+ * The final podium. The step height follows the place, so tied players stand at the same height. First place goes in the middle,
+ * the next one on its left and the third on its right (one of the slots with a tie, e.g. 1-1-3: two tall steps and a low one).
+ * Every step has its own tomato button and takes the stains thrown at that player.
+ */
 function Podium({ players, scores, me }: { players: PlayerView[]; scores: Record<string, number>; me: string }) {
   const splats = useSplats()
-  const ranked = players.map((p, i) => ({ p, i, s: scores[p.id] ?? 0 })).sort((a, b) => b.s - a.s || a.i - b.i)
-  const steps = [1, 0, 2].filter((k) => k < ranked.length).map((k) => ({ ...ranked[k], k, place: ranked.findIndex((x) => x.s === ranked[k].s) + 1 }))
-  const said = usePodiumBubbles(podiumIds(players, scores), me)
+  const thrower = useThrower()
+  const top = podiumOf(players, scores)
+  const steps = [1, 0, 2].filter((k) => k < top.length).map((k) => top[k])
+  const said = usePodiumBubbles(top.map((r) => r.p.id))
   return (
     <div className="podium" aria-label="Podio">
-      {steps.map((r) => {
+      {steps.map((r, idx) => {
         const msg = said[r.p.id]
-        const phrase = msg && CHAT_PHRASES.find((x) => x.id === msg.phrase)
+        const side = steps.length === 1 ? 'mid' : idx === 0 ? 'left' : idx === steps.length - 1 ? 'right' : 'mid'
         return (
-          <div key={r.p.id} className={`step s${r.k + 1}${r.p.id === me ? ' me' : ''}`}>
-            {msg && phrase && (
-              <span key={msg.id} className="saying" role="status">
-                <PhraseText phrase={phrase} to={players.find((p) => p.id === msg.to)} />
+          <div key={r.p.id} className={`step h${r.place} ${side}${r.p.id === me ? ' me' : ''}`}>
+            <div className="pedestal">
+              {msg && (
+                <span key={msg.id} className="saying" role="status">
+                  {msg.text}
+                </span>
+              )}
+              <span className="face">
+                <Avatar a={r.p.avatar} size={r.place === 1 ? 56 : 44} />
+                <TomatoButton at={r.p.id} name={r.p.nick} thrower={thrower} size={18} />
               </span>
-            )}
-            <Avatar a={r.p.avatar} size={r.k === 0 ? 56 : 44} />
-            <span className={`block place p${r.place}`}>{r.place}</span>
-            {/* the tomatoes only hit the winner */}
-            {r.k === 0 && <SplatLayer splats={splats} />}
+              <span className={`block place p${r.place}`}>{r.place}</span>
+              <SplatLayer splats={splats.filter((t) => t.at === r.p.id)} />
+            </div>
           </div>
         )
       })}
@@ -338,7 +351,6 @@ function Final({ room, game, me, onLeave }: Props) {
         <p className="kicker">Resultado final</p>
         <h2 className="prompt">{myPlace === 1 ? '¡Ganaste!' : `Quedaste en el lugar ${myPlace} de ${ranked.length}`}</h2>
         <Podium players={room.players} scores={game.scores} me={me} />
-        <TomatoButton />
         <p className="kicker">Tabla completa</p>
         <Table players={room.players} scores={game.scores} me={me} />
         {details && (
@@ -374,9 +386,7 @@ function Final({ room, game, me, onLeave }: Props) {
         ) : (
           <p className="hint">Esperando al host…</p>
         )}
-        <button className="link" onClick={onLeave}>
-          Salir de la sala
-        </button>
+        <button onClick={onLeave}>Salir de la sala</button>
       </div>
     </section>
   )
@@ -445,7 +455,7 @@ export function Game(props: Props) {
           </button>
         </div>
       </div>
-      <Chat players={room.players} me={me} ended={game.stage === 'final'} deck={game.chatDeck} podium={podiumIds(room.players, game.scores)} />
+      <Chat players={room.players} me={me} podium={showFinal ? podiumIds(room.players, game.scores) : undefined} />
       <div className="stage">
         {fresh && <ResultCard points={fresh.points} />}
         {game.stage === 'answering' && !fresh && <Question game={game} me={me} connected={connected} now={now} climb={climb} onResult={setResult} />}

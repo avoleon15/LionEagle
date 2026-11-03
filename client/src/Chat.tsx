@@ -1,16 +1,14 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { CHAT_GAP_MS, CHAT_NAME_MARK, CHAT_PHRASES, type ChatMessage, type ChatPhrase, type PlayerView } from '../../shared/protocol'
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { CHAT_GAP_MS, CHAT_MAX, type ChatMessage, type PlayerView } from '../../shared/protocol'
 import { Avatar } from './Avatar'
 import { ChatIcon } from './PixelIcon'
-import { PlayerName } from './PlayerName'
 import { sfx } from './sound'
 import { socket } from './socket'
 
-// Quick messages, in the style of Clash Royale: a button opens a short list of fixed phrases and the one you pick shows up as a
-// bubble for everybody. There is one list for while the questions run and another for the end of the game.
-// Some phrases are aimed at another player: after choosing one you pick who.
+// Free chat: a button opens a small panel with a text field; what you send shows up as a bubble (avatar and text, no name) for everybody.
+// It works in the waiting room, during the questions and at the end. The field only has focus when the player opens it.
 
-const SHOW_MS = 3600
+export const SHOW_MS = 4500
 const MAX_BUBBLES = 3
 
 interface Bubble {
@@ -18,43 +16,29 @@ interface Bubble {
   at: number
 }
 
-/** The text of a phrase, with {nombre} replaced by the target's name in their colour. */
-export function PhraseText({ phrase, to }: { phrase: ChatPhrase; to?: PlayerView }): ReactNode {
-  const [before, after] = phrase.text.split(CHAT_NAME_MARK)
-  if (after === undefined) return phrase.text
-  return (
-    <>
-      {before}
-      {to ? <PlayerName p={to} /> : <i>alguien</i>}
-      {after}
-    </>
-  )
-}
-
 interface Props {
   players: PlayerView[]
   me: string
-  /** The game is over: the end phrases are on offer instead of the in-game ones. */
-  ended: boolean
-  /** The phrases aimed at somebody on offer in this game (they change from game to game). */
-  deck: string[]
   /** Players standing on the podium: once the game is over their messages appear over their heads (see Podium), not here. */
-  podium: string[]
+  podium?: string[]
 }
 
-export function Chat({ players, me, ended, deck, podium }: Props) {
+export function Chat({ players, me, podium = [] }: Props) {
   const [open, setOpen] = useState(false)
-  const [picking, setPicking] = useState<ChatPhrase | null>(null)
+  const [text, setText] = useState('')
   const [bubbles, setBubbles] = useState<Bubble[]>([])
   const [error, setError] = useState('')
   const [wait, setWait] = useState(false)
-  const onPodium = useRef({ ended, podium })
-  onPodium.current = { ended, podium }
+  const [lift, setLift] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const before = useRef<Element | null>(null)
+  const podiumRef = useRef(podium)
+  podiumRef.current = podium
 
   useEffect(() => {
     const onMsg = (msg: ChatMessage) => {
       if (msg.from !== me) sfx.pop()
-      if (onPodium.current.ended && onPodium.current.podium.includes(msg.from)) return
+      if (podiumRef.current.includes(msg.from)) return
       setBubbles((b) => [...b.slice(-(MAX_BUBBLES - 1)), { msg, at: Date.now() }])
     }
     socket.on('chat:msg', onMsg)
@@ -66,67 +50,92 @@ export function Chat({ players, me, ended, deck, podium }: Props) {
     return () => clearTimeout(id)
   }, [bubbles])
 
-  const phrases = [
-    ...CHAT_PHRASES.filter((p) => p.when === 'both' || p.when === (ended ? 'end' : 'game')),
-    ...deck.flatMap((id) => CHAT_PHRASES.filter((p) => p.id === id)),
-  ]
-  const others = players.filter((p) => p.id !== me)
-  const byId = (id?: string) => players.find((p) => p.id === id)
+  // The on-screen keyboard covers the bottom of the page on phones: lift the panel above it while it is open.
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!open || !vv) return setLift(0)
+    const onResize = () => setLift(Math.max(0, window.innerHeight - vv.height - vv.offsetTop))
+    onResize()
+    vv.addEventListener('resize', onResize)
+    vv.addEventListener('scroll', onResize)
+    return () => {
+      vv.removeEventListener('resize', onResize)
+      vv.removeEventListener('scroll', onResize)
+      setLift(0)
+    }
+  }, [open])
 
-  const send = (phrase: ChatPhrase, to?: string) => {
+  const openPanel = () => {
+    before.current = document.activeElement
+    setOpen(true)
     setError('')
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+  /** Closing gives the focus back to whatever had it (the answer field during a question). */
+  const closePanel = () => {
     setOpen(false)
-    setPicking(null)
+    const prev = before.current
+    before.current = null
+    if (prev instanceof HTMLInputElement || prev instanceof HTMLTextAreaElement) setTimeout(() => prev.isConnected && prev.focus(), 0)
+  }
+
+  const send = (e?: FormEvent) => {
+    e?.preventDefault()
+    const value = text.replace(/\s+/g, ' ').trim()
+    if (!value || wait) return
     setWait(true)
     setTimeout(() => setWait(false), CHAT_GAP_MS)
-    socket.emit('chat:send', { phrase: phrase.id, to }, (res) => {
-      if (!res.ok) setError(res.error)
+    socket.emit('chat:send', { text: value }, (res) => {
+      if (res.ok) return
+      setError(res.error)
+      setTimeout(() => setError(''), 3000)
     })
+    setText('')
+    setError('')
+    closePanel()
   }
-  const pick = (phrase: ChatPhrase) => (phrase.text.includes(CHAT_NAME_MARK) ? setPicking(phrase) : send(phrase))
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation()
+      closePanel()
+    }
+  }
+  const byId = (id: string) => players.find((p) => p.id === id)
 
   return (
-    <div className="chat">
+    <div className="chat" style={lift ? { bottom: `calc(${lift}px + 10px)` } : undefined}>
       <ul className="bubbles" aria-live="polite">
         {bubbles.map(({ msg }) => {
           const from = byId(msg.from)
-          const phrase = CHAT_PHRASES.find((p) => p.id === msg.phrase)
-          if (!from || !phrase) return null
+          if (!from) return null
           return (
             <li key={msg.id} className={msg.from === me ? 'own' : ''}>
               <Avatar a={from.avatar} size={20} />
-              <span>
-                <PhraseText phrase={phrase} to={byId(msg.to)} />
-              </span>
+              <span>{msg.text}</span>
             </li>
           )
         })}
       </ul>
       {open && (
-        <div className="chatmenu" role="menu">
-          {picking ? (
-            <>
-              <p className="kicker">¿A quién?</p>
-              {others.map((p) => (
-                <button key={p.id} onClick={() => send(picking, p.id)}>
-                  <Avatar a={p.avatar} size={16} /> <PlayerName p={p} />
-                </button>
-              ))}
-              <button className="link" onClick={() => setPicking(null)}>Atrás</button>
-            </>
-          ) : (
-            <>
-              {phrases.map((p) => (
-                <button key={p.id} onClick={() => pick(p)}>
-                  <PhraseText phrase={p} />
-                </button>
-              ))}
-            </>
-          )}
-        </div>
+        <form className="chatmenu" onSubmit={send}>
+          <input
+            ref={inputRef}
+            value={text}
+            maxLength={CHAT_MAX}
+            placeholder="Escribe un mensaje"
+            aria-label="Mensaje para la sala"
+            autoComplete="off"
+            enterKeyHint="send"
+            onKeyDown={onKeyDown}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <button className="primary" disabled={!text.trim() || wait}>
+            Enviar
+          </button>
+        </form>
       )}
       {error && <p className="chaterror">{error}</p>}
-      <button className="chatbtn" aria-label="Mensajes" aria-expanded={open} disabled={wait && !open} onClick={() => { setOpen((o) => !o); setPicking(null) }}>
+      <button type="button" className="chatbtn" aria-label="Mensajes" aria-expanded={open} onClick={() => (open ? closePanel() : openPanel())}>
         <ChatIcon />
       </button>
     </div>

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { MAX_PLAYERS, QUESTIONS_PER_GAME, type RoomState } from '../../shared/protocol'
 import { Avatar } from './Avatar'
+import { Chat } from './Chat'
 import { groupCategories } from './categories'
 import { softBreaks } from './nickname'
 import { SuggestBox } from './SuggestBox'
 import { socket } from './socket'
+import { SplatLayer, TomatoButton, useSplats, useThrower } from './Tomato'
 
 interface Props {
   room: RoomState
@@ -19,6 +21,8 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
   const [copied, setCopied] = useState(false)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const splats = useSplats()
+  const thrower = useThrower()
   const isHost = room.hostId === me
   const link = `${window.location.origin}/${room.code}`
 
@@ -95,7 +99,11 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
                   {p.id === room.hostId && <span className="crown" title="Host">♛ </span>}
                   {softBreaks(p.nick)}
                 </span>
-                <Avatar a={p.avatar} size={44} />
+                <span className="face">
+                  <Avatar a={p.avatar} size={44} />
+                  <TomatoButton at={p.id} name={p.nick} thrower={thrower} size={18} />
+                </span>
+                <SplatLayer splats={splats.filter((t) => t.at === p.id)} />
                 {!p.connected && <span className="off">sin conexión</span>}
               </li>
             )
@@ -150,9 +158,9 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
           {/* Teaser of something that is still being built: it can be seen, not picked. */}
           <div className="group">
             <div className="grow">
-              <button className="gbtn soon" disabled aria-disabled title="Próximamente">
+              <button className="gbtn soon" disabled aria-disabled>
                 <span className="box-mark" aria-hidden>🚧</span>
-                La Cuarentona <small>próximamente</small>
+                La 40
               </button>
             </div>
           </div>
@@ -182,6 +190,7 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
           </button>
         </div>
       </section>
+      <Chat players={room.players} me={me} />
       {suggesting && <SuggestBox nick={nick} categories={room.categories.map((c) => c.name)} onClose={() => setSuggesting(false)} />}
     </main>
   )

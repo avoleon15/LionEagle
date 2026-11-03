@@ -55,6 +55,14 @@ export const deviceId = (): string => {
   write('altus.device', fresh)
   return fresh
 }
+/** The browser's time zone (e.g. America/Guatemala): the only region data the server keeps. */
+export const timeZone = (): string | undefined => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+  } catch {
+    return undefined
+  }
+}
 export const saveProfile = (p: Profile) => write(KEY, p)
 export const loadSession = () => read<Session>(SESSION_KEY)
 export const saveSession = (s: Session) => write(SESSION_KEY, s)

@@ -3,12 +3,12 @@ import { TOMATO_GAP_MS, type TomatoSplat } from '../../shared/protocol'
 import { TomatoIcon } from './PixelIcon'
 import { socket } from './socket'
 
-// Once the game is over anybody can throw tomatoes at the winner: each one leaves a red stain and some drops on first place, for everybody.
-// The button waits half a second between throws.
+// Anybody can throw tomatoes at a player, in the waiting room (at the avatars) and once the game is over (at the podium):
+// each one leaves a red stain and some drops on that player, for everybody. The tomato buttons share one wait of half a second between throws.
 
-const MAX_SPLATS = 40
+const MAX_SPLATS = 60
 
-/** The stains that landed on the winner so far (they stay until the next game). */
+/** The stains that landed so far on anybody (they stay while the screen is shown: the lobby and the podium each start empty). */
 export function useSplats(): TomatoSplat[] {
   const [splats, setSplats] = useState<TomatoSplat[]>([])
   useEffect(() => {
@@ -30,6 +30,7 @@ function seedOf(id: string) {
   return h
 }
 
+/** The stains of one player: draw it inside that player's step or slot (position: relative). */
 export function SplatLayer({ splats }: { splats: TomatoSplat[] }) {
   return (
     <div className="splats" aria-hidden>
@@ -53,19 +54,25 @@ export function SplatLayer({ splats }: { splats: TomatoSplat[] }) {
   )
 }
 
-export function TomatoButton() {
+/** The half-second wait between throws, shared by every tomato button of the screen. */
+export function useThrower() {
   const [wait, setWait] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>()
   useEffect(() => () => clearTimeout(timer.current), [])
-  const throwOne = () => {
+  const throwAt = (at: string) => {
     if (wait) return
     setWait(true)
     timer.current = setTimeout(() => setWait(false), TOMATO_GAP_MS)
-    socket.emit('tomato:send', { x: 0.1 + Math.random() * 0.8, y: 0.05 + Math.random() * 0.9 }, () => undefined)
+    socket.emit('tomato:send', { at, x: 0.1 + Math.random() * 0.8, y: 0.05 + Math.random() * 0.9 }, () => undefined)
   }
+  return { wait, throwAt }
+}
+
+/** A small tomato to throw at one player. */
+export function TomatoButton({ at, name, thrower, size = 22 }: { at: string; name: string; thrower: ReturnType<typeof useThrower>; size?: number }) {
   return (
-    <button className="tomatobtn" disabled={wait} onClick={throwOne} aria-label="Tirar un tomate" title="Tirar un tomate">
-      <TomatoIcon size={34} />
+    <button type="button" className={'tomatobtn' + (thrower.wait ? ' cool' : '')} onClick={() => thrower.throwAt(at)} aria-label={`Tirar un tomate a ${name}`} title="Tirar un tomate">
+      <TomatoIcon size={size} />
     </button>
   )
 }
