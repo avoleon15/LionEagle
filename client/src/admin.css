@@ -195,7 +195,7 @@ main.admin.login { display: grid; place-items: center; padding-top: 0; }
 .admin .qhead-page h2 { font-size: 1.35rem; line-height: 1.3; color: var(--text); }
 .admin .qhead-page .tags { display: flex; gap: 8px; align-items: center; margin: 6px 0 14px; }
 .admin .qhead-page .cat-tag { width: auto; max-width: 240px; }
-.admin .qhead-page > button { flex: none; }
+.admin .qhead-page > button { flex: none; padding: 4px 14px; font-size: 0.85rem; box-shadow: none; }
 .admin details.fold { margin-top: 18px; background: var(--panel); border: 3px solid var(--panel-2); }
 .admin details.fold summary small { color: var(--muted); font-weight: 400; }
 .admin details.fold > .hint, .admin details.fold > .qlist { margin-left: 12px; margin-right: 12px; }
@@ -231,8 +231,6 @@ main.admin.login { display: grid; place-items: center; padding-top: 0; }
   .admin .cat-tag { width: 96px; white-space: normal; line-height: 1.15; font-size: 0.7rem; text-overflow: clip; }
   .admin .qhead .r, .admin .cnt.r { width: 44px; }
   .admin .qhead .r { font-size: 0; } .admin .qhead .r::before { content: 'Mal'; font-size: 0.75rem; }
-  .admin .qhead-page { flex-direction: column; }
-  .admin .qhead-page > button { align-self: stretch; }
   .admin .g-when { min-width: 0; }
   .admin .g-region { flex-basis: 100%; order: 5; }
   .admin .bar .n { font-size: 0.6rem; }

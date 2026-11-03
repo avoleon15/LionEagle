@@ -386,9 +386,7 @@ function Final({ room, game, me, onLeave }: Props) {
         ) : (
           <p className="hint">Esperando al host…</p>
         )}
-        <button className="link" onClick={onLeave}>
-          Salir de la sala
-        </button>
+        <button onClick={onLeave}>Salir de la sala</button>
       </div>
     </section>
   )
