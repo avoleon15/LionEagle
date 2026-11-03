@@ -242,3 +242,7 @@ main.admin.login { display: grid; place-items: center; padding-top: 0; }
   .admin th:first-child, .admin td:first-child { width: 20px; }
   .admin th:last-child, .admin td.pts { width: 38px; }
 }
+
+/* search box inside the "Respuestas correctas" dropdown */
+.admin .foldsearch { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; }
+.admin .foldsearch input { flex: 1; min-width: 0; }

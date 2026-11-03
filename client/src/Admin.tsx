@@ -612,6 +612,8 @@ function QuestionPage({ token, id, edit, back }: { token: string; id: string; ed
   const [adding, setAdding] = useState<string | null>(null)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
+  const [find, setFind] = useState('')
+  const [aliases, setAliases] = useState<Record<string, string[]>>({}) // answer label -> its other spellings, so the search finds them too
 
   const load = useCallback(async () => {
     try {
@@ -623,7 +625,10 @@ function QuestionPage({ token, id, edit, back }: { token: string; id: string; ed
   useEffect(() => { void load() }, [load])
   useEffect(() => {
     call<{ question: Question }>(token, `/questions/${id}`)
-      .then((r) => setMeta({ ...r.question, answerCount: r.question.answers.length, problems: r.question.problems ?? [] }))
+      .then((r) => {
+        setMeta({ ...r.question, answerCount: r.question.answers.length, problems: r.question.problems ?? [] })
+        setAliases(Object.fromEntries(r.question.answers.map((a) => [a.label, a.aliases])))
+      })
       .catch(() => undefined)
   }, [token, id])
 
@@ -648,6 +653,12 @@ function QuestionPage({ token, id, edit, back }: { token: string; id: string; ed
   const enough = d.validTotal >= d.minForSuggestions
   const attempts = d.validTotal + d.unknownTotal
   const maxCount = Math.max(1, ...d.answers.map((a) => a.count))
+  // Search ignores case and accents, and looks in the answer, its aliases and what players typed for it.
+  const plain = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  const needle = plain(find.trim())
+  const shown = needle
+    ? d.answers.filter((a) => [a.label, ...(aliases[a.label] ?? []), ...a.variants.map((v) => v.text)].some((t) => plain(t).includes(needle)))
+    : d.answers
   return (
     <>
       <div className="qhead-page">
@@ -692,8 +703,13 @@ function QuestionPage({ token, id, edit, back }: { token: string; id: string; ed
             ? 'La sugerencia sale de qué parte de las respuestas válidas fue cada una: 8% o más = 10, 3% = 30, 1% = 60, 0.3% = 80, menos = 100.'
             : `Faltan datos para sugerir niveles (hay ${d.validTotal} de ${d.minForSuggestions} respuestas válidas necesarias).`}
         </p>
+        <div className="foldsearch">
+          <input type="search" placeholder="Buscar una respuesta…" value={find} onChange={(e) => setFind(e.target.value)} aria-label="Buscar una respuesta" />
+          {needle && <span className="n">{shown.length} de {d.answers.length}</span>}
+        </div>
+        {needle && shown.length === 0 && <p className="hint">Ninguna respuesta coincide con "{find.trim()}".</p>}
         <ul className="qlist">
-          {d.answers.map((a) => {
+          {shown.map((a) => {
             const others = a.variants.filter((v) => v.text.toLowerCase() !== a.label.toLowerCase()).slice(0, 4)
             return (
               <li key={a.label} className={a.count === 0 ? 'ignored' : ''} style={{ cursor: 'default' }}>
