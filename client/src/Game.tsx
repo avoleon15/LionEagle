@@ -432,7 +432,7 @@ export function Game(props: Props) {
 
   return (
     <main className="play">
-      {self && <Scene avatar={self.avatar} climb={climb} focus={focus} launch={game.stage === 'final'} />}
+      {self && <Scene avatar={self.avatar} others={room.players.filter((p) => p.id !== me).map((p) => ({ id: p.id, avatar: p.avatar, nick: p.nick, score: game.scores[p.id] ?? 0 }))} climb={climb} focus={focus} launch={game.stage === 'final'} />}
       <div className="hud">
         <div className="hud-left">
           {game.stage === 'answering' && <MiniBoard players={room.players} scores={game.scores} prev={game.prevScores} me={me} arrows={game.round > 0} />}

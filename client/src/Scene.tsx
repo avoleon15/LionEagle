@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { Avatar } from '../../shared/protocol'
-import { climbValue, type Climb } from './climb'
+import { climbValue, durationFor, type Climb } from './climb'
 import { AVATAR_H, AVATAR_W, avatarSprite } from './pixel/avatar'
 import { drawText, textWidth } from './pixel/font'
 import { MAX_SCORE, buildWorld, cloudSprite, drawStars, loadGamePicture, rng, type GamePicture, type World } from './pixel/world'
@@ -15,8 +15,12 @@ const TIER_COLOR: Record<number, string> = { 10: '#ffffff', 30: '#ffffff', 60: '
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number }
 interface Cloud { x: number; y: number; speed: number; sprite: HTMLCanvasElement }
 
+/** Another player of the room: drawn in the background at the height of their score. */
+export interface Other { id: string; avatar: Avatar; nick: string; score: number }
+
 interface Props {
   avatar: Avatar
+  others: Other[]
   climb: Climb
   /** Where the feet sit on screen, as a share of its height (lower when a box covers the middle). */
   focus: number
@@ -46,6 +50,8 @@ export function Scene(props: Props) {
     let burstAt = 0
     let burstTier = 0
     let launchAt = 0
+    // Each other player rises on their own, as soon as their score goes up (nobody waits for a result card but you).
+    const flights = new Map<string, Climb>()
     let raf = 0
     let last = performance.now()
     let alive = true
@@ -106,7 +112,7 @@ export function Scene(props: Props) {
 
     const draw = (g: CanvasRenderingContext2D, nowMs: number, now: number, dt: number) => {
       const w = world!
-      const { avatar, climb, focus, launch } = latest.current
+      const { avatar, others, climb, focus, launch } = latest.current
       const worldH = w.canvas.height
 
       // a new climb: "+points" when it starts, sparkles when it ends
@@ -147,6 +153,8 @@ export function Scene(props: Props) {
         const sy = Math.round(c.y - camY)
         if (sy > -20 && sy < H + 4) g.drawImage(c.sprite, Math.round(c.x), sy)
       }
+
+      drawOthers(g, others, nowMs, now, camY)
 
       const x = Math.round(W / 2)
       const top = Math.round(footY - AVATAR_H - camY)
@@ -198,6 +206,51 @@ export function Scene(props: Props) {
       }
       g.globalAlpha = 1
       particles = particles.filter((p) => p.life < p.max)
+    }
+
+    /** The other characters stand behind yours, a little see-through, spread to both sides of the centre. */
+    const drawOthers = (g: CanvasRenderingContext2D, others: Other[], nowMs: number, now: number, camY: number) => {
+      const w = world!
+      // Everybody gets a place across the width (the middle one is yours); the more players, the closer they stand.
+      const total = others.length + 1
+      const places = Array.from({ length: total }, (_, j) => (total === 1 ? 0.5 : 0.08 + (0.84 * j) / (total - 1)))
+      let mid = 0
+      places.forEach((v, j) => { if (Math.abs(v - 0.5) < Math.abs(places[mid] - 0.5)) mid = j })
+      const slots = places.filter((_, j) => j !== mid)
+      const taken: [number, number, number, number][] = [] // the name tags drawn so far this frame: [left, top, right, bottom]
+      others.forEach((o, i) => {
+        let f = flights.get(o.id)
+        if (!f) flights.set(o.id, (f = { from: o.score, to: o.score, start: 0, dur: 0 }))
+        if (o.score !== f.to) {
+          const shown = climbValue(f, nowMs)
+          f = o.score > f.to ? { from: shown, to: o.score, start: nowMs, dur: durationFor(o.score - shown) } : { from: o.score, to: o.score, start: nowMs, dur: 0 }
+          flights.set(o.id, f)
+        }
+        const score = climbValue(f, nowMs)
+        const foot = w.footLow - (Math.min(MAX_SCORE, Math.max(0, score)) / MAX_SCORE) * (w.footLow - w.footHigh)
+        const rising = nowMs > f.start && nowMs < f.start + f.dur
+        const bob = score > 2 && !rising ? Math.round(Math.sin(now * 2 + i * 1.7) * 1.2) : 0
+        const cx = Math.round(W * slots[i])
+        const top = Math.round(foot - AVATAR_H - camY + bob)
+        if (top > H || top < -AVATAR_H) return
+        g.globalAlpha = 0.62
+        g.drawImage(avatarSprite(o.avatar), cx - AVATAR_W / 2, top)
+        // a name goes above its character; when it would run into another name it is moved up, and left out if there is no room
+        const name = o.nick.length > 6 ? o.nick.slice(0, 6) : o.nick
+        const tw = textWidth(name)
+        const left = Math.max(1, Math.min(W - tw - 1, Math.round(cx - tw / 2)))
+        const clash = (y: number) => taken.some(([l, t, r, b]) => left < r + 2 && left + tw > l - 2 && y < b + 1 && y + 5 > t - 1)
+        let ny = top - 7
+        for (let tries = 0; tries < 3 && clash(ny); tries++) ny -= 7
+        g.globalAlpha = 0.9
+        if (ny >= 0 && !clash(ny)) {
+          drawText(g, name, left, ny, '#ffffff', '#1b1426')
+          taken.push([left, ny, left + tw, ny + 5])
+        }
+        g.globalAlpha = 1
+        if (rising && Math.floor(now * 24 + i) % 3 === 0) particles.push({ x: cx + (Math.random() - 0.5) * 8, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 6, vy: 16, life: 0, max: 0.5, color: '#ffffff', size: 1 })
+      })
+      for (const id of flights.keys()) if (!others.some((o) => o.id === id)) flights.delete(id)
     }
 
     raf = requestAnimationFrame(frame)

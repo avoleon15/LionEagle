@@ -26,13 +26,15 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
   const isHost = room.hostId === me
   const link = `${window.location.origin}/${room.code}`
 
+  // The text goes before the link so that it reads well in a chat; WhatsApp and others turn the link into a card with the image and title.
+  const invite = `¡Únete a mi lobby en Altus! 🦁🦅 Trivia donde gana quien responde lo que casi nadie diría. Entra a mi lobby (código ${room.code}):\n${link}`
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(link)
+      await navigator.clipboard.writeText(invite)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      window.prompt('Copia el enlace:', link)
+      window.prompt('Copia la invitación:', invite)
     }
   }
 

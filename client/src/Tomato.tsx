@@ -7,14 +7,27 @@ import { socket } from './socket'
 // each one leaves a red stain and some drops on that player, for everybody. The tomato buttons share one wait of half a second between throws.
 
 const MAX_SPLATS = 60
+/** How long a stain stays on the screen before it is wiped off (it fades during the last second, see .splat in styles.css). */
+export const SPLAT_LIFE_MS = 5000
 
-/** The stains that landed so far on anybody (they stay while the screen is shown: the lobby and the podium each start empty). */
+/** The stains that landed lately on anybody: each one is wiped off after a few seconds (the lobby and the podium each start empty). */
 export function useSplats(): TomatoSplat[] {
   const [splats, setSplats] = useState<TomatoSplat[]>([])
   useEffect(() => {
-    const onSplat = (t: TomatoSplat) => setSplats((s) => [...s.slice(-(MAX_SPLATS - 1)), t])
+    const timers = new Set<ReturnType<typeof setTimeout>>()
+    const onSplat = (t: TomatoSplat) => {
+      setSplats((s) => [...s.slice(-(MAX_SPLATS - 1)), t])
+      const timer = setTimeout(() => {
+        timers.delete(timer)
+        setSplats((s) => s.filter((x) => x.id !== t.id))
+      }, SPLAT_LIFE_MS)
+      timers.add(timer)
+    }
     socket.on('tomato:splat', onSplat)
-    return () => void socket.off('tomato:splat', onSplat)
+    return () => {
+      socket.off('tomato:splat', onSplat)
+      timers.forEach(clearTimeout)
+    }
   }, [])
   return splats
 }
