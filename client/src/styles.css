@@ -460,8 +460,8 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .ranktable li.me .arrow.up { color: #138a06; }
 .ranktable li.me .arrow.down { color: #c4001a; }
 .ranktable .who { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; text-align: left; font-size: 0.9rem; line-height: 1.1; }
-.ranktable .who .nick { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ranktable .said { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.72rem; color: var(--rim); }
+.ranktable .who .nick { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranktable .said { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.72rem; color: var(--rim); }
 .ranktable .said.none { color: var(--muted); font-style: italic; }
 .ranktable li.me .said { color: #3a3a12; }
 .ranktable .gain { min-width: 34px; font-size: 0.9rem; text-align: right; color: var(--muted); opacity: 0; transition: opacity 0.4s ease 0.3s; }
@@ -537,3 +537,15 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .app .chatbtn, .app .tomatobtn { padding: 0; display: grid; place-items: center; line-height: 0; }
 .app .chatbtn { width: 48px; height: 48px; background: var(--gold); border-color: var(--ink); box-shadow: inset -3px -3px 0 var(--gold-dark), inset 3px 3px 0 #fff2a8, 3px 3px 0 var(--ink); }
 .app .chatbtn:active:not(:disabled), .app .chatbtn[aria-expanded='true'] { transform: translate(3px, 3px); box-shadow: inset -3px -3px 0 var(--gold-dark), inset 3px 3px 0 #fff2a8, 0 0 0 var(--ink); }
+
+/* mentions under the podium: the three prizes that stand out most, side by side, each block in its own colour (none of the podium's gold, silver or bronze) */
+.mentions { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; text-align: center; }
+.mentions li { --c: #4cc9f0; --fg: #1b1426; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 3px 9px; background: var(--c); color: var(--fg); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); min-width: 0; }
+.mentions li.me { outline: 3px solid #fff2a8; outline-offset: 1px; }
+.mentions .mtext { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; width: 100%; }
+.mentions .mtitle { font-family: var(--pixel); font-size: 0.74rem; font-weight: 400; line-height: 1.1; overflow-wrap: break-word; }
+.mentions .mwho { font-size: 0.92rem; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mentions small { color: var(--fg); font-size: 0.72rem; line-height: 1.2; overflow-wrap: anywhere; }
+.mentions .k-joya { --c: #4cc9f0; } .mentions .k-cazarrarezas { --c: #7b2cbf; --fg: #fff; } .mentions .k-silencioso { --c: #4361ee; --fg: #fff; }
+.mentions .k-colmena { --c: #2a9d8f; --fg: #fff; } .mentions .k-llamas { --c: #e63946; --fg: #fff; } .mentions .k-reloj { --c: #6bbf59; } .mentions .k-final { --c: #f15bb5; }
+@media (max-width: 360px) { .mentions .mtitle { font-size: 0.64rem; } .mentions small { font-size: 0.68rem; } }

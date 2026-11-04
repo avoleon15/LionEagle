@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
+import { computeAwards } from '../../shared/awards'
 import { secondsLeft } from '../../shared/clock'
-import { MAX_ANSWER_LENGTH, tierLabel, type ChatMessage, type GameView, type PlayerView, type RoomState } from '../../shared/protocol'
+import { MAX_ANSWER_LENGTH, tierLabel, type ChatMessage, type GameView, type PlayerView, type RoomState, type RoundRecord } from '../../shared/protocol'
 import { Avatar } from './Avatar'
 import { RESULT_MS, climbing, useClimb, useNow, type Climb } from './climb'
 import { Chat, SHOW_MS } from './Chat'
@@ -332,6 +333,32 @@ function Reveal({ room, game, me }: { room: RoomState; game: GameView; me: strin
   )
 }
 
+/** The three mentions that stand out most in this game (see shared/awards.ts), under the podium. Nothing shows when none stands out. */
+function Mentions({ players, history, me }: { players: PlayerView[]; history: RoundRecord[]; me: string }) {
+  const awards = computeAwards(players.map((p) => p.id), history)
+  if (awards.length === 0) return null
+  return (
+    <>
+      <p className="kicker">Menciones honoríficas</p>
+      <ul className="mentions">
+        {awards.map((a) => {
+          const p = players.find((x) => x.id === a.playerId)!
+          return (
+            <li key={a.kind} className={`k-${a.kind}${a.playerId === me ? ' me' : ''}`}>
+              <Avatar a={p.avatar} size={30} />
+              <span className="mtext">
+                <b className="mtitle">{a.title}</b>
+                <span className="mwho">{p.nick}</span>
+                <small>{a.detail}</small>
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </>
+  )
+}
+
 function Final({ room, game, me, onLeave }: Props) {
   const [error, setError] = useState('')
   const [details, setDetails] = useState(false)
@@ -351,6 +378,7 @@ function Final({ room, game, me, onLeave }: Props) {
         <p className="kicker">Resultado final</p>
         <h2 className="prompt">{myPlace === 1 ? '¡Ganaste!' : `Quedaste en el lugar ${myPlace} de ${ranked.length}`}</h2>
         <Podium players={room.players} scores={game.scores} me={me} />
+        <Mentions players={room.players} history={game.history ?? []} me={me} />
         <p className="kicker">Tabla completa</p>
         <Table players={room.players} scores={game.scores} me={me} />
         {details && (

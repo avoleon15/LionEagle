@@ -15,6 +15,7 @@ import * as stats from './stats'
 import { Game, GameError, MIN_RETRY_MS } from './game'
 import { RateLimiter } from './ratelimit'
 import { secondsLeft } from '../../shared/clock'
+import { computeAwards } from '../../shared/awards'
 import { sanitizeJoin, RoomError } from './rooms'
 import { SAMPLE_QUESTIONS as QUESTIONS } from './questions'
 
@@ -594,6 +595,26 @@ for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content 
   for (let i = 0; i < 55; i++) metrics.saveSummary(metrics.gameStarted(2, [], gt + 20_000_000 + i), { players: ['X'], rounds: [] })
   const kept = metrics.lastGames(100)
   check(kept.length === 50 && kept[0].id > gs && kept.every((g) => g.id >= kept[49].id), 'games: only the 50 newest keep their detail')
+}
+
+// --- mentions at the end of the game ---
+{
+  const round = (pts: [string, number, string | null][]) => ({ prompt: 'p', category: 'c', results: pts.map(([playerId, points, answer]) => ({ playerId, points, answer })) })
+  const ids = ['a', 'b', 'c']
+  const hist = [
+    round([['a', 100, 'Zamarra'], ['b', 10, 'x'], ['c', 0, null]]),
+    round([['a', 60, 'y'], ['b', 10, 'x'], ['c', 0, null]]),
+    round([['a', 60, 'y'], ['b', 10, 'x'], ['c', 0, null]]),
+    round([['a', 80, 'y'], ['b', 30, 'x'], ['c', 10, 'z']]),
+    round([['a', 60, 'y'], ['b', 10, 'x'], ['c', 60, 'z']]),
+  ]
+  const got = computeAwards(ids, hist)
+  check(got.length === 3 && got.length === new Set(got.map((g) => g.playerId)).size, 'awards: at most three, one per player')
+  check(got.every((g, i) => i === 0 || got[i - 1].strength >= g.strength), 'awards: the strongest come first')
+  check(got.find((g) => g.kind === 'silencioso')?.playerId === 'c' || !got.some((g) => g.kind === 'silencioso'), 'awards: "sin responder" goes to the player who skipped most')
+  check(computeAwards(['a'], hist).length === 0, 'awards: nothing with a single player')
+  check(computeAwards(ids, hist.slice(0, 3)).length === 0, 'awards: nothing in a game of fewer than four rounds')
+  check(computeAwards(ids, hist.map((r) => ({ ...r, results: r.results.map((x) => ({ ...x, points: 30, answer: 'q' })) }))).length === 0, 'awards: when everybody plays the same nobody gets a mention')
 }
 
 process.exit(failed ? 1 : 0)
