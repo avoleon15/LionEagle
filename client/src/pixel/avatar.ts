@@ -12,14 +12,14 @@ export const COLORS = [
 // The hats on offer, in order; the number is the case of drawHat that draws it (the other cases were removed
 // from the game and their drawing stays unused).
 const HATS: [kind: number, name: string][] = [
-  [0, 'Sin gorro'], [3, 'Corona'], [5, 'Vikingo'], [9, 'Mohicano'], [13, 'Mago'], [22, 'Flecha'], [23, 'Papel aluminio'], [24, 'Cono'], [28, 'Sombrero charro'], [29, 'Ushanka'], [30, 'Bandana de sushi'],
+  [0, 'Sin gorro'], [3, 'Corona'], [9, 'Mohicano'], [13, 'Mago'], [22, 'Flecha'], [23, 'Papel aluminio'], [24, 'Cono'], [28, 'Sombrero charro'], [30, 'Bandana de sushi'], [31, 'Pato de hule'], [32, 'Huevo frito'],
 ]
 export const HAT_NAMES = HATS.map((h) => h[1])
 export const hatName = (i: number) => HAT_NAMES[i] ?? ''
 // The faces on offer, in order. Each is drawn by the matching case of drawFace (cases that are not listed
 // here were removed from the game, their drawing stays unused).
 const FACES: [kind: number, name: string][] = [
-  [0, 'Puntitos'], [1, 'Feliz'], [2, 'Sorpresa'], [3, 'Guiño'], [7, 'Muerto'], [8, 'Ojo morado'], [9, 'Calavera'], [13, 'Llorando'], [14, 'Bizco'], [15, 'Vomitando'], [16, 'Dinero'], [18, 'Lentes de sol'],
+  [0, 'Puntitos'], [3, 'Guiño'], [7, 'Muerto'], [9, 'Calavera'], [13, 'Llorando'], [14, 'Bizco'], [15, 'Vomitando'], [16, 'Dinero'], [18, 'Lentes de sol'], [19, 'Lengüetazo'], [20, 'Cejotas'], [21, 'Corazones'],
 ]
 export const FACE_NAMES = FACES.map((f) => f[1])
 export const faceName = (i: number) => FACE_NAMES[i] ?? ''
@@ -150,6 +150,24 @@ function drawFace(p: Painter, kind: number) {
       p.rect(5, 11, 6, 4, INK); p.rect(13, 11, 6, 4, INK); p.rect(11, 11, 2, 1, INK)
       p.rect(6, 12, 2, 1, '#5b6fa8'); p.px(6, 13, '#5b6fa8'); p.rect(14, 12, 2, 1, '#5b6fa8'); p.px(14, 13, '#5b6fa8')
       p.rect(10, 18, 3, 1, INK); p.px(13, 17, INK); p.px(9, 19, INK)
+      break
+    case 19: // tongue out: happy arcs and a long pink tongue hanging from an open mouth
+      for (const x of [7, 14]) { p.px(x, 13, INK); p.px(x + 1, 12, INK); p.px(x + 2, 13, INK) }
+      p.rect(8, 17, 8, 2, INK)
+      p.rect(10, 18, 4, 6, '#ff7aa8'); p.rect(10, 18, 1, 5, '#ff9fbd'); p.rect(13, 19, 1, 5, '#d94f7f'); p.rect(11, 24, 2, 1, '#d94f7f'); p.rect(12, 19, 1, 3, '#d94f7f')
+      break
+    case 20: // huge eyebrows, one raised, and a flat suspicious mouth
+      dotEye(p, 8, 13, 2); dotEye(p, 14, 13, 2)
+      p.rect(6, 9, 6, 2, '#3b2314'); p.rect(13, 11, 5, 2, '#3b2314'); p.px(6, 9, '#5a3a20'); p.px(12, 10, '#3b2314')
+      p.rect(10, 19, 4, 1, INK); p.px(14, 18, INK)
+      break
+    case 21: // heart eyes and rosy cheeks
+      for (const x of [6, 13]) {
+        p.rows(x, 10, ['.x.x.', 'xxxxx', 'xxxxx', '.xxx.', '..x..'], { x: '#ff2e63' })
+        p.px(x + 1, 11, '#ff9fb5')
+      }
+      p.rect(10, 18, 4, 1, INK); p.rect(11, 19, 2, 1, INK)
+      p.rect(5, 16, 2, 1, '#ff8fab'); p.rect(17, 16, 2, 1, '#ff8fab')
       break
     default: // crying
       dotEye(p, 8, 12); dotEye(p, 14, 12)
@@ -316,6 +334,27 @@ function drawHat(p: Painter, kind: number) {
       p.rect(16, 6, 3, 3, '#f8f9fa'); p.rect(18, 9, 2, 4, '#f8f9fa'); p.rect(17, 9, 1, 3, '#d8dde2'); p.rect(19, 11, 1, 2, '#d8dde2')
       break
     }
+    case 31: // rubber duck facing right
+      p.rows(3, 0, [
+        '.........yyy..',
+        '........yyyyy.',
+        '........yKyyoo',
+        '.y.....yyyyoo.',
+        '.yyyyyyyyyyy..',
+        '..yyyyyyyyyd..',
+      ], { y: '#ffd23f', d: '#e0a800', K: INK, o: '#ff7a1a' })
+      p.px(9, 1, '#fff2a8'); p.px(5, 4, '#fff2a8')
+      break
+    case 32: // fried egg
+      p.rows(4, 0, [
+        '...wwwww....',
+        '..wwwwwwww..',
+        '.wwwyyywwwww',
+        'wwwyyhywwwws',
+        'wwwwyyywwwss',
+        '.wwwwwwwsss.',
+      ], { w: '#ffffff', s: '#d8dde2', y: '#ffb703', h: '#fff2a8' })
+      break
   }
 }
 
