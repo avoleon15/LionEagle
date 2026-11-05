@@ -559,3 +559,6 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .mentions .micon svg { width: 86%; height: auto; max-height: 92%; filter: none; }
 .mentions li > :not(.micon) { position: relative; z-index: 1; }
 .mentions .k-cazarrarezas .micon, .mentions .k-silencioso .micon, .mentions .k-colmena .micon, .mentions .k-llamas .micon { color: color-mix(in srgb, var(--c) 82%, #ffffff); }
+
+/* the version number, at the very bottom right of the home page (inside the page's bottom padding, so it never covers the card) */
+.app .version { position: absolute; right: 12px; bottom: 10px; margin: 0; text-align: right; z-index: 1; pointer-events: none; font-family: Inter, system-ui, sans-serif; font-weight: 700; font-size: 0.9rem; letter-spacing: 0.04em; color: #fff; text-shadow: 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 2px 0 var(--ink), 0 -2px 0 var(--ink); }
