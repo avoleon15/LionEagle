@@ -77,19 +77,19 @@ export function computeAwards(playerIds: string[], history: RoundRecord[]): Awar
     }
   })
   const j = joya as { row: Row; round: number; alone: boolean } | null
-  if (j) add('joya', 'La joya rara', j.row, `Dijo «${j.row.answers[j.round]}» y casi nadie la dice`, j.alone ? 0.62 : 0.42)
+  if (j) add('joya', 'La joya rara', j.row, `Rara: «${j.row.answers[j.round]}»`, j.alone ? 0.62 : 0.42)
 
   const kings = best(rows, (r) => r.pts.filter((p) => p >= 100).length, 2)
-  if (kings) add('cazarrarezas', 'Cazarrarezas', kings.row, `${plural(kings.v, 'respuesta rara', 'respuestas raras')} de las que casi nadie da`, (kings.v / total) * 1.6)
+  if (kings) add('cazarrarezas', 'Cazarrarezas', kings.row, plural(kings.v, 'respuesta rara', 'respuestas raras'), (kings.v / total) * 1.6)
 
   const silent = best(rows, (r) => r.answered.filter((a) => !a).length, 2)
-  if (silent) add('silencioso', 'El silencioso', silent.row, `${plural(silent.v, 'pregunta', 'preguntas')} sin responder`, (silent.v / total) * 1.4)
+  if (silent) add('silencioso', 'El silencioso', silent.row, `${silent.v} sin responder`, (silent.v / total) * 1.4)
 
   const hive = best(rows, (r) => r.pts.filter((p) => p === 10).length, 3)
-  if (hive) add('colmena', 'Mente colmena', hive.row, `${plural(hive.v, 'respuesta', 'respuestas')} que casi todos dicen`, (hive.v / total) * 1.2)
+  if (hive) add('colmena', 'Mente colmena', hive.row, `${hive.v} respuestas comunes`, (hive.v / total) * 1.2)
 
   const fire = best(rows, (r) => longestRun(r.pts, 60), 3)
-  if (fire) add('llamas', 'En llamas', fire.row, `${fire.v} respuestas raras seguidas`, (fire.v / total) * 1.3)
+  if (fire) add('llamas', 'En llamas', fire.row, `${fire.v} raras seguidas`, (fire.v / total) * 1.3)
 
   // Steadiest: answered every round, a decent average and little ups and downs (spread / average).
   const steady = best(
@@ -102,11 +102,11 @@ export function computeAwards(playerIds: string[], history: RoundRecord[]): Awar
     },
     0.55,
   )
-  if (steady) add('reloj', 'Reloj suizo', steady.row, 'Casi los mismos puntos en cada ronda', steady.v)
+  if (steady) add('reloj', 'Reloj suizo', steady.row, 'Puntos parejos', steady.v)
 
   // Late bloomer: how much better the last three rounds went than the ones before.
   const gain = best(rows, (r) => mean(r.pts.slice(-3)) - mean(r.pts.slice(0, -3)), 25)
-  if (gain) add('final', 'Final de campeón', gain.row, `+${Math.round(gain.v)} por ronda en las últimas 3`, (gain.v / 100) * 1.5)
+  if (gain) add('final', 'Final de campeón', gain.row, `+${Math.round(gain.v)} por ronda al final`, (gain.v / 100) * 1.5)
 
   out.sort((a, b) => b.strength - a.strength)
   const kept: Award[] = []

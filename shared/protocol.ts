@@ -109,21 +109,6 @@ export interface ChatMessage {
   text: string
 }
 
-/**
- * Tomatoes thrown at a player: in the waiting room (at anybody in the crowd) and once the game is over (at anybody on the podium).
- * `at` is the player it hits; x and y are where it lands, from 0 to 1 across that player's step (or slot).
- */
-export const TOMATO_GAP_MS = 500
-export interface TomatoSend {
-  at: string
-  x: number
-  y: number
-}
-export interface TomatoSplat extends TomatoSend {
-  id: string
-  from: string
-}
-
 export interface SuggestionPayload {
   prompt: string
   category: string
@@ -163,11 +148,9 @@ export interface ClientToServer {
   'game:answer': (text: string, ack: (r: Ack<AnswerResult>) => void) => void
   'game:reset': (ack: (r: Ack<null>) => void) => void
   'chat:send': (p: ChatSend, ack: (r: Ack<null>) => void) => void
-  'tomato:send': (p: TomatoSend, ack: (r: Ack<null>) => void) => void
 }
 
 export interface ServerToClient {
   'room:state': (room: RoomState) => void
   'chat:msg': (m: ChatMessage) => void
-  'tomato:splat': (t: TomatoSplat) => void
 }

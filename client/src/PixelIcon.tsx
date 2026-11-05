@@ -19,24 +19,6 @@ function PixelIcon({ rows, colors, size, label }: { rows: string[]; colors: Reco
   )
 }
 
-const TOMATO = [
-  '....g..g....',
-  '...gggggg...',
-  '..rrrggrrr..',
-  '.rrrrrrrrrr.',
-  '.rwwrrrrrrr.',
-  'rrwrrrrrrrrd',
-  'rrrrrrrrrrrd',
-  'rrrrrrrrrrdd',
-  '.rrrrrrrrdd.',
-  '.rrrrrrrddd.',
-  '..rrrrdddd..',
-  '...dddddd...',
-]
-export const TomatoIcon = ({ size = 32 }: { size?: number }) => (
-  <PixelIcon rows={TOMATO} size={size} colors={{ r: '#e63946', d: '#a4161a', w: '#ff9aa2', g: '#4fb83a' }} />
-)
-
 const CHAT = [
   '..oooooooooooo..',
   '.owwwwwwwwwwwwo.',

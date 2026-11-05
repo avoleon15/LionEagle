@@ -168,13 +168,6 @@ export const sfx = {
     tone(390, 0.07, 0.09, 'triangle', 0.2)
   },
 
-  /** A tomato hits somebody: a wet little splat. */
-  splat() {
-    if (!gate('splat', 70)) return
-    noise(0, 0.14, 2200, 300, 0.32)
-    tone(210, 0, 0.1, 'sine', 0.3, 80)
-  },
-
   /** The reading time is over and answering is open. */
   go() {
     tone(N.E5, 0, 0.07, 'triangle', 0.3)
