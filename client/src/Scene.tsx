@@ -10,7 +10,11 @@ import { MAX_SCORE, buildWorld, cloudSprite, drawStars, loadGamePicture, rng, ty
 // logical resolution (240 px tall, like a handheld console screen) and scaled up with nearest-neighbour.
 
 const H0 = 240
-const TIER_COLOR: Record<number, string> = { 10: '#ffffff', 30: '#ffffff', 60: '#8ee06a', 80: '#7fd0ff', 100: '#ffd23f' }
+// The colour of each score, the same as in the ranking table (--t10 ... --t100 in styles.css), and a lighter tone of it for the sparks.
+const TIER_COLOR: Record<number, string> = { 10: '#7fe0ff', 30: '#5b8cff', 60: '#7be35a', 80: '#c77dff', 100: '#ffd23f' }
+const TIER_LIGHT: Record<number, string> = { 10: '#d6f6ff', 30: '#b9ccff', 60: '#d2f7c4', 80: '#e8ccff', 100: '#fff6c2' }
+/** The score tier of a gain of `pts` points (10, 30, 60, 80 or 100). */
+const tierOf = (pts: number) => [100, 80, 60, 30, 10].find((t) => pts >= t) ?? 10
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number }
 interface Cloud { x: number; y: number; speed: number; sprite: HTMLCanvasElement }
@@ -56,6 +60,10 @@ export function Scene(props: Props) {
     let popup: { text: string; color: string; at: number } | null = null
     let burstAt = 0
     let burstTier = 0
+    let trail = ['#ffffff'] // colours of the sparks that come off the rocket while the character climbs
+    let rings: { x: number; y: number; at: number; color: string }[] = [] // shock waves of the big explosions
+    let flashAt = 0
+    const burstedFor = new Map<string, number>() // for each other player, the climb whose end already had its burst
     let launchAt = 0
     // Each other player rises on their own, as soon as their score goes up (nobody waits for a result card but you).
     const flights = new Map<string, Climb>()
@@ -125,6 +133,29 @@ export function Scene(props: Props) {
       raf = requestAnimationFrame(frame)
     }
 
+    /** The sparks at the end of a climb, in the colour of the score; a "Rey León" (100) is a big explosion with shock waves and a flash. */
+    const burst = (x: number, y: number, tier: number, nowMs: number) => {
+      const color = TIER_COLOR[tier] ?? '#ffffff'
+      const light = TIER_LIGHT[tier] ?? '#ffffff'
+      if (tier >= 100) {
+        const colors = ['#ffd23f', '#fff6c2', '#ffffff', '#ff9f1c', '#ff5a1f']
+        for (let i = 0; i < 90; i++) {
+          const ang = Math.random() * Math.PI * 2
+          const sp = 30 + Math.random() * 95
+          particles.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 10, life: 0, max: 0.8 + Math.random() * 0.8, color: colors[i % colors.length], size: i % 5 === 0 ? 3 : i % 3 === 0 ? 2 : 1 })
+        }
+        rings.push({ x, y, at: nowMs, color: '#fff6c2' }, { x, y, at: nowMs + 90, color: '#ffd23f' })
+        flashAt = nowMs
+        return
+      }
+      const count = tier >= 80 ? 22 : tier >= 60 ? 16 : tier >= 30 ? 12 : 8
+      for (let i = 0; i < count; i++) {
+        const ang = (i / count) * Math.PI * 2 + (i % 3) * 0.3
+        const sp = 25 + (i % 5) * 9
+        particles.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 12, life: 0, max: 0.7 + (i % 4) * 0.12, color: i % 3 === 0 ? '#ffffff' : i % 2 === 0 ? light : color, size: 1 })
+      }
+    }
+
     const draw = (g: CanvasRenderingContext2D, nowMs: number, now: number, dt: number) => {
       const w = world!
       const { avatar, nick, others, climb, focus, launch } = latest.current
@@ -134,10 +165,11 @@ export function Scene(props: Props) {
       if (climb !== seenClimb) {
         if (seenClimb && climb.to > climb.from) {
           const pts = Math.round(climb.to - climb.from)
-          const tier = Math.min(100, pts)
+          const tier = tierOf(pts)
           popup = { text: `+${pts}`, color: TIER_COLOR[tier] ?? '#ffffff', at: climb.start }
           burstAt = climb.start + climb.dur
           burstTier = tier
+          trail = [TIER_COLOR[tier] ?? '#ffffff', TIER_LIGHT[tier] ?? '#ffffff']
         }
         seenClimb = climb
       }
@@ -184,7 +216,7 @@ export function Scene(props: Props) {
         g.fillRect(x - Math.floor((sw - 4) / 2), sy + 1, sw - 4, 1)
       }
       if (rising && Math.floor(now * 24) % 2 === 0) {
-        particles.push({ x: x + (Math.random() - 0.5) * 10, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 8, vy: 18, life: 0, max: 0.6, color: '#ffffff', size: 1 })
+        particles.push({ x: x + (Math.random() - 0.5) * 10, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 8, vy: 18, life: 0, max: 0.6, color: trail[Math.floor(Math.random() * trail.length)], size: burstTier >= 100 ? 2 : 1 })
       }
       if (lift > 0) {
         const f = Math.floor(now * 20) % 2
@@ -199,13 +231,7 @@ export function Scene(props: Props) {
 
       if (burstAt && nowMs >= burstAt) {
         burstAt = 0
-        const count = burstTier >= 100 ? 28 : burstTier >= 80 ? 16 : burstTier >= 60 ? 10 : 6
-        const colors = burstTier >= 100 ? ['#ffd23f', '#fff6c2', '#ffffff'] : burstTier >= 80 ? ['#7fd0ff', '#d6f0ff'] : ['#8ee06a', '#d6ffc2', '#ffffff']
-        for (let i = 0; i < count; i++) {
-          const ang = (i / count) * Math.PI * 2 + (i % 3) * 0.3
-          const sp = 25 + (i % 5) * 9
-          particles.push({ x, y: top + AVATAR_H / 2, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 12, life: 0, max: 0.7 + (i % 4) * 0.12, color: colors[i % colors.length], size: burstTier >= 100 && i % 4 === 0 ? 2 : 1 })
-        }
+        burst(x, top + AVATAR_H / 2, burstTier, nowMs)
       }
       if (popup) {
         const u = (nowMs - popup.at) / 1000
@@ -221,6 +247,25 @@ export function Scene(props: Props) {
         g.globalAlpha = Math.max(0, 1 - p.life / p.max)
         g.fillStyle = p.color
         g.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size)
+      }
+      // the shock waves of an explosion: rings that grow and fade
+      for (const r of rings) {
+        const u = (nowMs - r.at) / 1000
+        if (u < 0 || u > 0.7) continue
+        const rad = u * 90
+        g.globalAlpha = Math.max(0, 1 - u / 0.7)
+        g.fillStyle = r.color
+        const steps = Math.max(24, Math.floor(rad * 6))
+        for (let i = 0; i < steps; i++) {
+          const a = (i / steps) * Math.PI * 2
+          g.fillRect(Math.round(r.x + Math.cos(a) * rad), Math.round(r.y + Math.sin(a) * rad), 2, 2)
+        }
+      }
+      rings = rings.filter((r) => nowMs - r.at < 700)
+      if (flashAt) {
+        const a = 0.5 - ((nowMs - flashAt) / 1000) * 2.2
+        if (a <= 0) flashAt = 0
+        else { g.globalAlpha = a; g.fillStyle = '#fff6c2'; g.fillRect(0, 0, W, H) }
       }
       g.globalAlpha = 1
       particles = particles.filter((p) => p.life < p.max)
@@ -284,13 +329,20 @@ export function Scene(props: Props) {
         const score = climbValue(f, nowMs)
         const foot = w.footLow - (Math.min(MAX_SCORE, Math.max(0, score)) / MAX_SCORE) * (w.footLow - w.footHigh)
         const rising = nowMs > f.start && nowMs < f.start + f.dur
+        const gain = f.to - f.from
+        const tier = tierOf(gain)
         const bob = score > 2 && !rising ? Math.round(Math.sin(now * 2 + i * 1.7) * 1.2) : 0
         const cx = Math.round(W * slots[i])
         const top = Math.round(foot - AVATAR_H - camY + bob)
         if (top > H || top < -AVATAR_H) return
         g.drawImage(avatarSprite(o.avatar), cx - AVATAR_W / 2, top)
         tags.push({ name: o.nick.length > 8 ? o.nick.slice(0, 8) : o.nick, cx, top })
-        if (rising && Math.floor(now * 24 + i) % 3 === 0) particles.push({ x: cx + (Math.random() - 0.5) * 8, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 6, vy: 16, life: 0, max: 0.5, color: '#ffffff', size: 1 })
+        if (rising && Math.floor(now * 24 + i) % 3 === 0) particles.push({ x: cx + (Math.random() - 0.5) * 8, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 6, vy: 16, life: 0, max: 0.5, color: Math.random() < 0.5 ? TIER_COLOR[tier] : TIER_LIGHT[tier], size: tier >= 100 ? 2 : 1 })
+        // when their climb ends on screen: the sparks of their score (an explosion for a Rey León)
+        if (gain > 0 && f.dur > 0 && nowMs >= f.start + f.dur && nowMs - (f.start + f.dur) < 1500 && burstedFor.get(o.id) !== f.start) {
+          burstedFor.set(o.id, f.start)
+          burst(cx, top + AVATAR_H / 2, tier, nowMs)
+        }
       })
       for (const id of flights.keys()) if (!others.some((o) => o.id === id)) flights.delete(id)
     }
