@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { Avatar } from '../../shared/protocol'
+import type { Avatar, MapId } from '../../shared/protocol'
 import { climbValue, durationFor, type Climb } from './climb'
 import { AVATAR_H, AVATAR_W, avatarSprite } from './pixel/avatar'
 import { drawText, textWidth } from './pixel/font'
@@ -20,6 +20,8 @@ export interface Other { id: string; avatar: Avatar; nick: string; score: number
 
 interface Props {
   avatar: Avatar
+  /** The background of this game (the same for every player). */
+  map: MapId
   nick: string
   others: Other[]
   climb: Climb
@@ -103,7 +105,7 @@ export function Scene(props: Props) {
     // A picture made outside the code replaces the drawn column when it exists.
     function load(wide: boolean) {
       pictureWide = wide
-      loadGamePicture(wide).then((found) => {
+      loadGamePicture(wide, latest.current.map).then((found) => {
         if (!alive || !found || wide !== pictureWide) return
         picture = found
         build()

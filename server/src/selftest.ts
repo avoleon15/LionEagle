@@ -16,6 +16,7 @@ import { Game, GameError, MIN_RETRY_MS } from './game'
 import { RateLimiter } from './ratelimit'
 import { secondsLeft } from '../../shared/clock'
 import { computeAwards } from '../../shared/awards'
+import { MAPS } from '../../shared/protocol'
 import { sanitizeJoin, RoomError } from './rooms'
 import { SAMPLE_QUESTIONS as QUESTIONS } from './questions'
 
@@ -318,6 +319,25 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   game.submit('b', q0.answers[0].label)
   check(game.view().stage === 'reveal', 'tries: the round ends early when everybody has answered')
   game.dispose()
+}
+
+// ---- the map of a game ----
+{
+  const members = ['a', 'b']
+  const seen = new Set<string>()
+  let valid = true
+  for (let i = 0; i < 60; i++) {
+    const game = new Game({ members: () => members, active: () => members, changed: () => {} }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })))
+    seen.add(game.view().map)
+    valid = valid && (MAPS as readonly string[]).includes(game.view().map) && game.view().map === game.map
+    game.dispose()
+  }
+  check(valid, 'map: every game has a map from the list')
+  check(seen.size === MAPS.length, 'map: over many games every map comes up (it is picked at random)')
+  const g1 = new Game({ members: () => members, active: () => members, changed: () => {} }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })))
+  const first = g1.view().map
+  check(g1.view().map === first && g1.view().map === first, 'map: it does not change during a game')
+  g1.dispose()
 }
 
 // ---- reading time before answering opens ----

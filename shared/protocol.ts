@@ -35,6 +35,10 @@ const TIER_LABELS: Record<number, string> = {
 }
 export const tierLabel = (points: number) => TIER_LABELS[points] ?? ''
 
+/** The backgrounds a game can be played on: one is picked at random when the game starts (client/public/bg/ and bg/<name>/). */
+export const MAPS = ['classic', 'dinos'] as const
+export type MapId = (typeof MAPS)[number]
+
 export type GameStage = 'answering' | 'reveal' | 'final'
 
 export interface RevealResult {
@@ -52,6 +56,7 @@ export interface GameView {
   stage: GameStage
   round: number // 0-based
   total: number
+  map: MapId // the background of this game, the same for every player
   category: string
   prompt: string
   hint: string // a short clue about what kind of answer is wanted (may be empty)

@@ -1,5 +1,5 @@
-import { MAX_ANSWER_LENGTH, QUESTIONS_PER_GAME, type AnswerResult, type GameStage, type GameView, type Reveal, type RoundRecord } from '../../shared/protocol'
-import { READ_MS, REVEAL_MS, ROUND_MS } from './config'
+import { MAPS, MAX_ANSWER_LENGTH, QUESTIONS_PER_GAME, type AnswerResult, type GameStage, type GameView, type MapId, type Reveal, type RoundRecord } from '../../shared/protocol'
+import { FORCE_MAP, READ_MS, REVEAL_MS, ROUND_MS } from './config'
 import { buildIndex, match, suggest, type Index, type Question } from './matching'
 import { logAnswer, recordRound } from './stats'
 
@@ -31,6 +31,8 @@ export class Game {
   private round = 0
   private endsAt = 0
   private durationMs = 0
+  /** The background of this game, picked when it starts. */
+  readonly map: MapId = (MAPS as readonly string[]).includes(FORCE_MAP ?? '') ? (FORCE_MAP as MapId) : MAPS[Math.floor(Math.random() * MAPS.length)]
   private startsAt = 0 // answers open from this moment (server clock); before it the question can only be read
   private locks = new Map<string, Lock>()
   private lastWrong = new Map<string, number>() // when each player last typed a wrong answer (to slow down guessing)
@@ -203,6 +205,7 @@ export class Game {
       stage: this.stage,
       round: this.round,
       total: this.questions.length,
+      map: this.map,
       category: this.question.category,
       prompt: this.question.prompt,
       hint: this.question.hint ?? '',
