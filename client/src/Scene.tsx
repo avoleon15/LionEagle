@@ -20,6 +20,7 @@ export interface Other { id: string; avatar: Avatar; nick: string; score: number
 
 interface Props {
   avatar: Avatar
+  nick: string
   others: Other[]
   climb: Climb
   /** Where the feet sit on screen, as a share of its height (lower when a box covers the middle). */
@@ -40,7 +41,7 @@ export function Scene(props: Props) {
     const cv = canvas.current!
     const tv = tagCanvas.current!
     let sc = 1 // screen pixels per logical pixel
-    let tags: { name: string; cx: number; top: number }[] = []
+    let tags: { name: string; cx: number; top: number; mine?: boolean }[] = []
     let W = 160
     let H = H0
     let world: World | null = null
@@ -124,7 +125,7 @@ export function Scene(props: Props) {
 
     const draw = (g: CanvasRenderingContext2D, nowMs: number, now: number, dt: number) => {
       const w = world!
-      const { avatar, others, climb, focus, launch } = latest.current
+      const { avatar, nick, others, climb, focus, launch } = latest.current
       const worldH = w.canvas.height
 
       // a new climb: "+points" when it starts, sparkles when it ends
@@ -189,7 +190,10 @@ export function Scene(props: Props) {
         g.fillStyle = '#ff7a1a'; g.fillRect(x - 1, top + AVATAR_H + 3 + f, 2, 3)
         if (Math.floor(now * 30) % 2 === 0) particles.push({ x, y: top + AVATAR_H + 3, vx: (Math.random() - 0.5) * 14, vy: 20, life: 0, max: 0.45, color: '#ffe9a8', size: 1 })
       }
-      if (top > -AVATAR_H) g.drawImage(avatarSprite(avatar), x - AVATAR_W / 2, top)
+      if (top > -AVATAR_H) {
+        g.drawImage(avatarSprite(avatar), x - AVATAR_W / 2, top)
+        tags.push({ name: nick.length > 14 ? nick.slice(0, 14) : nick, cx: x, top, mine: true })
+      }
 
       if (burstAt && nowMs >= burstAt) {
         burstAt = 0
@@ -238,14 +242,19 @@ export function Scene(props: Props) {
       g.strokeStyle = '#1b1426'
       g.fillStyle = '#ffffff'
       const taken: [number, number, number, number][] = []
-      for (const t of tags) {
+      // yours first: it always gets its place and the others move around it
+      for (const t of [...tags].sort((p, q) => Number(!!q.mine) - Number(!!p.mine))) {
+        g.font = `${t.mine ? 700 : 600} ${t.mine ? fs + 1 : fs}px "Pixelify Sans", monospace`
         const tw = g.measureText(t.name).width
         const x = Math.max(2, Math.min(tv.clientWidth - tw - 2, t.cx * sc - tw / 2))
         const clash = (y: number) => taken.some(([l, tp, r, b]) => x < r + 2 && x + tw > l - 2 && y - fs < b && y > tp)
         let y = t.top * sc - 4
-        for (let tries = 0; tries < 3 && clash(y); tries++) y -= fs + 3
-        if (y - fs < 0 || clash(y)) continue
-        g.globalAlpha = 0.92
+        if (!t.mine) for (let tries = 0; tries < 3 && clash(y); tries++) y -= fs + 3
+        if (y - fs < 0 || (!t.mine && clash(y))) continue
+        g.globalAlpha = t.mine ? 1 : 0.92
+        g.strokeStyle = t.mine ? '#000000' : '#1b1426'
+        g.fillStyle = t.mine ? '#ffd23f' : '#ffffff'
+        g.lineWidth = t.mine ? 3.5 : 3
         g.strokeText(t.name, x, y)
         g.fillText(t.name, x, y)
         taken.push([x, y - fs, x + tw, y])
@@ -253,7 +262,7 @@ export function Scene(props: Props) {
       g.globalAlpha = 1
     }
 
-    /** The other characters stand behind yours, a little see-through, spread to both sides of the centre. */
+    /** The other characters stand behind yours, fully opaque, spread to both sides of the centre. */
     const drawOthers = (g: CanvasRenderingContext2D, others: Other[], nowMs: number, now: number, camY: number) => {
       const w = world!
       // Everybody gets a place across the width (the middle one is yours); the more players, the closer they stand.
@@ -277,9 +286,7 @@ export function Scene(props: Props) {
         const cx = Math.round(W * slots[i])
         const top = Math.round(foot - AVATAR_H - camY + bob)
         if (top > H || top < -AVATAR_H) return
-        g.globalAlpha = 0.62
         g.drawImage(avatarSprite(o.avatar), cx - AVATAR_W / 2, top)
-        g.globalAlpha = 1
         tags.push({ name: o.nick.length > 8 ? o.nick.slice(0, 8) : o.nick, cx, top })
         if (rising && Math.floor(now * 24 + i) % 3 === 0) particles.push({ x: cx + (Math.random() - 0.5) * 8, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 6, vy: 16, life: 0, max: 0.5, color: '#ffffff', size: 1 })
       })
