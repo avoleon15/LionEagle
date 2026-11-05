@@ -137,13 +137,20 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
     }
   }
 
-  // Quick beeps in the last 5 seconds, a longer one at the end.
+  // Quick beeps in the last 5 seconds (the long beep for time running out is in Game, when the round ends).
   const whole = Math.ceil(secs)
   const lastBeep = useRef(99)
   useEffect(() => {
     if (!reading && !locked && !lockedByServer && whole <= 5 && whole >= 1 && whole !== lastBeep.current) sfx.tick(false)
     lastBeep.current = whole
   }, [whole, locked, lockedByServer, reading])
+
+  // A soft cue when the reading time ends and answering opens.
+  const wasReading = useRef(reading)
+  useEffect(() => {
+    if (wasReading.current && !reading) sfx.go()
+    wasReading.current = reading
+  }, [reading])
 
   // The box opens for typing when the reading pause is over.
   useEffect(() => {
@@ -432,6 +439,8 @@ function Final({ room, game, me, onLeave }: Props) {
   )
 }
 
+let startedGame = -1
+
 export function Game(props: Props) {
   const { room, game, me, connected, onLeave } = props
   const now = useNow(60)
@@ -447,14 +456,25 @@ export function Game(props: Props) {
   const fresh = result && result.round === game.round && game.stage !== 'final' && now - result.at < RESULT_MS ? result : null
 
   // Sounds that follow the game: start, the climb, other players answering, the take-off.
+  // The start jingle plays once per game, not again when this screen is mounted again (StrictMode, a reconnect) in the middle of it.
   useEffect(() => {
-    sfx.start()
+    if (game.round === 0 && game.stage === 'answering' && startedGame !== room.gameNo) {
+      startedGame = room.gameNo
+      sfx.start()
+    }
   }, [])
   useEffect(() => {
     if (climb.to <= climb.from) return
     const id = setTimeout(() => sfx.climb(climb.dur / 1000), Math.max(0, climb.start - performance.now()))
     return () => clearTimeout(id)
   }, [climb])
+  // Time ran out on you: one long beep when the round ends and you had not answered. (The question screen is already gone by
+  // the time the countdown reads zero, so this is decided here, from the round change.)
+  const prevStage = useRef(game.stage)
+  useEffect(() => {
+    if (prevStage.current === 'answering' && game.stage === 'reveal' && !game.answered.includes(me)) sfx.tick(true)
+    prevStage.current = game.stage
+  }, [game.stage])
   const othersAnswered = game.answered.filter((id) => id !== me).length
   const seenOthers = useRef(0)
   useEffect(() => {

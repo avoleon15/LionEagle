@@ -37,7 +37,7 @@ export function Chat({ players, me, podium = [] }: Props) {
 
   useEffect(() => {
     const onMsg = (msg: ChatMessage) => {
-      if (msg.from !== me) sfx.pop()
+      if (msg.from !== me) sfx.chat()
       if (podiumRef.current.includes(msg.from)) return
       setBubbles((b) => [...b.slice(-(MAX_BUBBLES - 1)), { msg, at: Date.now() }])
     }

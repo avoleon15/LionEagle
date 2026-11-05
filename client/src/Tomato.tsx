@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { TOMATO_GAP_MS, type TomatoSplat } from '../../shared/protocol'
 import { TomatoIcon } from './PixelIcon'
 import { socket } from './socket'
+import { sfx } from './sound'
 
 // Anybody can throw tomatoes at a player, in the waiting room (at the avatars) and once the game is over (at the podium):
 // each one leaves a red stain and some drops on that player, for everybody. The tomato buttons share one wait of half a second between throws.
@@ -16,6 +17,7 @@ export function useSplats(): TomatoSplat[] {
   useEffect(() => {
     const timers = new Set<ReturnType<typeof setTimeout>>()
     const onSplat = (t: TomatoSplat) => {
+      sfx.splat()
       setSplats((s) => [...s.slice(-(MAX_SPLATS - 1)), t])
       const timer = setTimeout(() => {
         timers.delete(timer)

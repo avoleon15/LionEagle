@@ -26,7 +26,14 @@ function audio(): { c: AudioContext; out: GainNode } | null {
       ctx = new AC()
       master = ctx.createGain()
       master.gain.value = 0.22
-      master.connect(ctx.destination)
+      // Many sounds can overlap (ticks, pops, a fanfare, the climb): the compressor keeps their sum from clipping.
+      const limiter = ctx.createDynamicsCompressor()
+      limiter.threshold.value = -14
+      limiter.knee.value = 12
+      limiter.ratio.value = 8
+      limiter.attack.value = 0.003
+      limiter.release.value = 0.2
+      master.connect(limiter).connect(ctx.destination)
     }
     if (ctx.state === 'suspended') void ctx.resume()
     return { c: ctx, out: master! }
@@ -53,17 +60,34 @@ function tone(freq: number, at: number, dur: number, wave: Wave = 'square', vol 
   osc.stop(t + dur + 0.02)
 }
 
+let noiseBuf: AudioBuffer | null = null
+/** One second of white noise, made once and reused (looped) by every whoosh. */
+function noiseBuffer(c: AudioContext): AudioBuffer {
+  if (!noiseBuf || noiseBuf.sampleRate !== c.sampleRate) {
+    noiseBuf = c.createBuffer(1, c.sampleRate, c.sampleRate)
+    const data = noiseBuf.getChannelData(0)
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1
+  }
+  return noiseBuf
+}
+
+/** A sound that may not play again within `ms`: bursts of the same event (a flood of chat, many answers) stay pleasant. */
+const lastPlayed: Record<string, number> = {}
+function gate(name: string, ms: number): boolean {
+  const now = performance.now()
+  if (now - (lastPlayed[name] ?? -1e9) < ms) return false
+  lastPlayed[name] = now
+  return true
+}
+
 /** A burst of filtered noise (wind, whoosh), its filter sweeping from `from` to `to` Hz. */
 function noise(at: number, dur: number, from: number, to: number, vol = 0.3) {
   const a = audio()
   if (!a) return
   const t = a.c.currentTime + at
-  const len = Math.max(1, Math.floor(a.c.sampleRate * dur))
-  const buf = a.c.createBuffer(1, len, a.c.sampleRate)
-  const data = buf.getChannelData(0)
-  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1
   const src = a.c.createBufferSource()
-  src.buffer = buf
+  src.buffer = noiseBuffer(a.c)
+  src.loop = true
   const filter = a.c.createBiquadFilter()
   filter.type = 'bandpass'
   filter.Q.value = 1.2
@@ -74,7 +98,7 @@ function noise(at: number, dur: number, from: number, to: number, vol = 0.3) {
   g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.15, dur / 3))
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
   src.connect(filter).connect(g).connect(a.out)
-  src.start(t)
+  src.start(t, Math.random(), dur + 0.05)
 }
 
 const N: Record<string, number> = {
@@ -134,7 +158,27 @@ export const sfx = {
 
   /** Somebody else locked in an answer. */
   pop() {
-    tone(660, 0, 0.05, 'sine', 0.22, 880)
+    if (gate('pop', 90)) tone(660, 0, 0.05, 'sine', 0.22, 880)
+  },
+
+  /** A chat message from somebody else: a soft two-note blip, different from the "somebody answered" pop. */
+  chat() {
+    if (!gate('chat', 250)) return
+    tone(520, 0, 0.06, 'triangle', 0.22)
+    tone(390, 0.07, 0.09, 'triangle', 0.2)
+  },
+
+  /** A tomato hits somebody: a wet little splat. */
+  splat() {
+    if (!gate('splat', 70)) return
+    noise(0, 0.14, 2200, 300, 0.32)
+    tone(210, 0, 0.1, 'sine', 0.3, 80)
+  },
+
+  /** The reading time is over and answering is open. */
+  go() {
+    tone(N.E5, 0, 0.07, 'triangle', 0.3)
+    tone(N.A5, 0.07, 0.14, 'triangle', 0.3)
   },
 
   /** The character climbs: a glide upwards for as long as the climb lasts, with a few sparkles. */
@@ -153,8 +197,9 @@ export const sfx = {
 
   /** Take-off at the end: a rocket that roars and rises. */
   launch() {
-    noise(0, 2.4, 200, 4000, 0.45)
-    tone(70, 0, 2.4, 'sawtooth', 0.25, 700)
+    // 1.7 s: it ends (0.9 s + 1.7 s) just as the final box and its fanfare come in, so they do not play over each other
+    noise(0, 1.7, 200, 4000, 0.45)
+    tone(70, 0, 1.7, 'sawtooth', 0.25, 700)
   },
 
   /** Final ranking: a fanfare if you won, a sad slide if not. */
