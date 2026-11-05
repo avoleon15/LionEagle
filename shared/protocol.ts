@@ -57,6 +57,8 @@ export interface GameView {
   hint: string // a short clue about what kind of answer is wanted (may be empty)
   endsAt: number // server clock, ms; 0 when there is no countdown
   durationMs: number // full length of the current countdown
+  startsAt: number // server clock, ms: answers open from here (the question is shown to be read before); 0 outside the answering stage
+  readMs: number // how long the reading pause lasts in this round
   serverNow: number // server clock when this state was built, to correct clock skew
   scores: Record<string, number>
   prevScores: Record<string, number> // the totals when this round began (scores already include the answers locked in since)

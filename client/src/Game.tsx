@@ -3,6 +3,7 @@ import { computeAwards } from '../../shared/awards'
 import { secondsLeft } from '../../shared/clock'
 import { MAX_ANSWER_LENGTH, tierLabel, type ChatMessage, type GameView, type PlayerView, type RoomState, type RoundRecord } from '../../shared/protocol'
 import { Avatar } from './Avatar'
+import { AwardIcon } from './PixelIcon'
 import { RESULT_MS, climbing, useClimb, useNow, type Climb } from './climb'
 import { Chat, SHOW_MS } from './Chat'
 import { MiniBoard } from './MiniBoard'
@@ -22,11 +23,12 @@ interface Props {
   onLeave: () => void
 }
 
-/** Seconds left. The clock skew is measured once per server state (see shared/clock.ts). */
-function useSecondsLeft(game: GameView): number {
+/** Seconds left to answer, and seconds left of the reading pause before that. The clock skew is measured once per server state (see shared/clock.ts). */
+function useClock(game: GameView): { left: number; read: number } {
   const received = useRef({ serverNow: -1, at: 0 })
   if (received.current.serverNow !== game.serverNow) received.current = { serverNow: game.serverNow, at: Date.now() }
-  return secondsLeft(game.endsAt, game.serverNow, received.current.at, Date.now())
+  const { at } = received.current
+  return { left: secondsLeft(game.endsAt, game.serverNow, at, Date.now()), read: secondsLeft(game.startsAt, game.serverNow, at, Date.now()) }
 }
 
 const tierClass = (points: number) => `t${points}`
@@ -57,8 +59,11 @@ function Waiting({ secs }: { secs: number }) {
 }
 
 function Question({ game, me, connected, now, climb, onResult }: { game: GameView; me: string; connected: boolean; now: number; climb: Climb; onResult: (r: Result) => void }) {
-  const secs = useSecondsLeft(game)
+  const clock = useClock(game)
   const total = Math.max(1, game.durationMs) / 1000
+  // First the question is only shown for a few seconds (reading); then the answering countdown starts.
+  const reading = clock.read > 0
+  const secs = Math.min(clock.left, total)
   const [text, setText] = useState('')
   const [msg, setMsg] = useState('')
   const [hint, setHint] = useState<{ typed: string; label: string } | null>(null)
@@ -92,7 +97,7 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
   const submit = (e?: FormEvent) => {
     e?.preventDefault()
     const value = text.trim()
-    if (!value || sending || !connected || locked || lockedByServer) return
+    if (!value || sending || !connected || locked || lockedByServer || reading) return
     // Enter on a wrong answer that has a suggestion takes the suggestion first.
     if (hint && value === hint.typed) return useHint()
     setSending(true)
@@ -136,14 +141,20 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
   const whole = Math.ceil(secs)
   const lastBeep = useRef(99)
   useEffect(() => {
-    if (!locked && !lockedByServer && whole <= 5 && whole >= 1 && whole !== lastBeep.current) sfx.tick(false)
+    if (!reading && !locked && !lockedByServer && whole <= 5 && whole >= 1 && whole !== lastBeep.current) sfx.tick(false)
     lastBeep.current = whole
-  }, [whole, locked, lockedByServer])
+  }, [whole, locked, lockedByServer, reading])
+
+  // The box opens for typing when the reading pause is over.
+  useEffect(() => {
+    if (!reading) inputRef.current?.focus()
+  }, [reading])
 
   if (locked || lockedByServer) return climbing(climb, now) ? null : <Waiting secs={secs} />
 
   const shown = splitPrompt(game.prompt)
-  const share = Math.min(1, secs / total)
+  const readTotal = Math.max(0.001, game.readMs / 1000)
+  const share = reading ? 1 - Math.min(1, clock.read / readTotal) : Math.min(1, secs / total)
   const cells = 20
   const lit = Math.ceil(share * cells)
   return (
@@ -160,8 +171,8 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
           {game.hint}
         </p>
       )}
-      <div className={'clock' + (secs <= 5 ? ' low' : '')} aria-label={`${Math.ceil(secs)} segundos`}>
-        <b>{Math.ceil(secs)}</b>
+      <div className={'clock' + (reading ? ' reading' : secs <= 5 ? ' low' : '')} aria-label={reading ? `Lee la pregunta: ${Math.ceil(clock.read)} segundos` : `${Math.ceil(secs)} segundos`}>
+        <b>{Math.ceil(reading ? clock.read : secs)}</b>
         <span className="cells">
           {Array.from({ length: cells }, (_, i) => (
             <i key={i} className={i < lit ? 'on' : ''} />
@@ -176,11 +187,11 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
             className={shake ? 'shake' : ''}
             value={text}
             maxLength={MAX_ANSWER_LENGTH}
-            placeholder="Tu respuesta"
+            placeholder={reading ? 'Lee la pregunta…' : 'Tu respuesta'}
             autoComplete="off"
             autoCapitalize="none"
             enterKeyHint="send"
-            disabled={!connected}
+            disabled={!connected || reading}
             onKeyDown={onKeyDown}
             onChange={(e) => {
               setText(e.target.value)
@@ -205,7 +216,7 @@ function Question({ game, me, connected, now, climb, onResult }: { game: GameVie
             </svg>
           </button>
         </div>
-        <button className="primary" disabled={!text.trim() || sending || !connected}>
+        <button className="primary" disabled={!text.trim() || sending || !connected || reading}>
           Enviar
         </button>
       </form>
@@ -345,6 +356,7 @@ function Mentions({ players, history, me }: { players: PlayerView[]; history: Ro
           const p = players.find((x) => x.id === a.playerId)!
           return (
             <li key={a.kind} className={`k-${a.kind}${a.playerId === me ? ' me' : ''}`}>
+              <span className="micon"><AwardIcon kind={a.kind} size={80} /></span>
               <Avatar a={p.avatar} size={30} />
               <span className="mtext">
                 <b className="mtitle">{a.title}</b>

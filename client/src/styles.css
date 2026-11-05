@@ -75,6 +75,7 @@ textarea { resize: vertical; }
 /* full-screen pixel backgrounds */
 .backdrop, .scene { position: fixed; inset: 0; z-index: 0; overflow: hidden; background: #a8d0f2; }
 .backdrop canvas, .scene canvas { display: block; image-rendering: pixelated; }
+.scene canvas.tags { position: absolute; left: 0; top: 0; image-rendering: auto; pointer-events: none; }
 .backdrop .picture { position: absolute; inset: 0; background-size: cover; background-position: center bottom; image-rendering: pixelated; }
 
 /* boxes */
@@ -191,6 +192,8 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .clock .cells { flex: 1; display: grid; grid-template-columns: repeat(20, 1fr); gap: 2px; height: 14px; }
 .clock .cells i { background: #0a0f2c; border: 1px solid var(--panel-2); }
 .clock .cells i.on { background: var(--rim); border-color: var(--rim); }
+.clock.reading b { color: var(--gold); border-color: var(--gold); }
+.clock.reading .cells i.on { background: var(--gold); border-color: var(--gold); }
 .clock.low b { color: var(--red); border-color: var(--red); animation: blink 0.5s steps(2) infinite; }
 .clock.low .cells i.on { background: var(--red); border-color: var(--red); }
 @keyframes blink { 50% { opacity: 0.55; } }
@@ -549,3 +552,10 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .mentions .k-joya { --c: #4cc9f0; } .mentions .k-cazarrarezas { --c: #7b2cbf; --fg: #fff; } .mentions .k-silencioso { --c: #4361ee; --fg: #fff; }
 .mentions .k-colmena { --c: #2a9d8f; --fg: #fff; } .mentions .k-llamas { --c: #e63946; --fg: #fff; } .mentions .k-reloj { --c: #6bbf59; } .mentions .k-final { --c: #f15bb5; }
 @media (max-width: 360px) { .mentions .mtitle { font-size: 0.64rem; } .mentions small { font-size: 0.68rem; } }
+
+/* the icon of each mention fills the back of its block, in a tone of the block's own colour (a little darker on light blocks, a little lighter on dark ones) */
+.mentions li { position: relative; overflow: hidden; }
+.mentions .micon { position: absolute; inset: 0; display: grid; place-items: center; line-height: 0; pointer-events: none; color: color-mix(in srgb, var(--c) 84%, #0d1440); }
+.mentions .micon svg { width: 86%; height: auto; max-height: 92%; filter: none; }
+.mentions li > :not(.micon) { position: relative; z-index: 1; }
+.mentions .k-cazarrarezas .micon, .mentions .k-silencioso .micon, .mentions .k-colmena .micon, .mentions .k-llamas .micon { color: color-mix(in srgb, var(--c) 82%, #ffffff); }

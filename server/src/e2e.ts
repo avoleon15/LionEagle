@@ -34,7 +34,7 @@ const base = `http://localhost:${port}`
 
 let child: ChildProcess | null = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
   cwd: serverDir,
-  env: { ...process.env, PORT: String(port), DB_PATH: join(dir, 'e2e.db'), ADMIN_TOKEN: 'e2e', LE_NO_SEED: '1', LE_ROUND_MS: '3000', LE_REVEAL_MS: '400', LE_HOST_HANDOVER_MS: '500', NODE_NO_WARNINGS: '1' },
+  env: { ...process.env, PORT: String(port), DB_PATH: join(dir, 'e2e.db'), ADMIN_TOKEN: 'e2e', LE_NO_SEED: '1', LE_ROUND_MS: '3000', LE_READ_MS: '0', LE_REVEAL_MS: '400', LE_HOST_HANDOVER_MS: '500', NODE_NO_WARNINGS: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 let log = ''

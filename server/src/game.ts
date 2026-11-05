@@ -1,5 +1,5 @@
 import { MAX_ANSWER_LENGTH, QUESTIONS_PER_GAME, type AnswerResult, type GameStage, type GameView, type Reveal, type RoundRecord } from '../../shared/protocol'
-import { REVEAL_MS, ROUND_MS } from './config'
+import { READ_MS, REVEAL_MS, ROUND_MS } from './config'
 import { buildIndex, match, suggest, type Index, type Question } from './matching'
 import { logAnswer, recordRound } from './stats'
 
@@ -31,6 +31,7 @@ export class Game {
   private round = 0
   private endsAt = 0
   private durationMs = 0
+  private startsAt = 0 // answers open from this moment (server clock); before it the question can only be read
   private locks = new Map<string, Lock>()
   private lastWrong = new Map<string, number>() // when each player last typed a wrong answer (to slow down guessing)
   private scores = new Map<string, number>()
@@ -43,7 +44,7 @@ export class Game {
   private index: Index
 
   /** Throws (before anything starts) if a question cannot be played. The caller announces the new game. */
-  constructor(private hooks: GameHooks, questions: Question[]) {
+  constructor(private hooks: GameHooks, questions: Question[], private readMs = READ_MS) {
     if (questions.length < QUESTIONS_PER_GAME) throw new GameError('No hay suficientes preguntas.')
     this.questions = questions
     // Built up front: a list that became inconsistent fails here, not in the middle of the game.
@@ -87,7 +88,10 @@ export class Game {
     this.lastWrong.clear()
     this.reveal = null
     this.index = this.indexes[this.round]
-    this.schedule(ROUND_MS, () => this.finishRound())
+    // The question is shown first for a few seconds; the answering countdown only starts after that.
+    this.schedule(this.readMs + ROUND_MS, () => this.finishRound())
+    this.durationMs = ROUND_MS
+    this.startsAt = Date.now() + this.readMs
     if (notify) this.changed()
   }
 
@@ -113,6 +117,7 @@ export class Game {
     }
     this.reveal = { results, top }
     this.stage = 'reveal'
+    this.startsAt = 0
     this.schedule(REVEAL_MS, () => this.next())
     this.changed()
   }
@@ -144,6 +149,7 @@ export class Game {
   /** The first valid answer locks in for the round. Wrong ones can be retried as often as you like, but not faster than a person types. */
   submit(playerId: string, text: string): AnswerResult {
     if (this.stage !== 'answering') throw new GameError('Ya terminó el tiempo.')
+    if (Date.now() < this.startsAt) throw new GameError('Lee la pregunta: en un momento podrás responder.')
     if (!this.scores.has(playerId)) throw new GameError('No estás en la partida.')
     if (this.locks.has(playerId)) throw new GameError('Ya respondiste esta pregunta.')
     if (Date.now() - (this.lastWrong.get(playerId) ?? 0) < MIN_RETRY_MS) throw new GameError('Más despacio.')
@@ -202,6 +208,8 @@ export class Game {
       hint: this.question.hint ?? '',
       endsAt: this.endsAt,
       durationMs: this.durationMs,
+      startsAt: this.stage === 'answering' ? this.startsAt : 0,
+      readMs: this.readMs,
       serverNow: Date.now(),
       scores,
       prevScores,

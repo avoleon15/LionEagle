@@ -31,12 +31,16 @@ interface Props {
 export function Scene(props: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
+  const tagCanvas = useRef<HTMLCanvasElement>(null)
   const latest = useRef(props)
   latest.current = props
 
   useEffect(() => {
     const el = wrap.current!
     const cv = canvas.current!
+    const tv = tagCanvas.current!
+    let sc = 1 // screen pixels per logical pixel
+    let tags: { name: string; cx: number; top: number }[] = []
     let W = 160
     let H = H0
     let world: World | null = null
@@ -78,6 +82,12 @@ export function Scene(props: Props) {
       cv.height = nh
       cv.style.width = `${nw * scale}px`
       cv.style.height = `${nh * scale}px`
+      sc = scale
+      const dpr = window.devicePixelRatio || 1
+      tv.width = Math.round(cw * dpr)
+      tv.height = Math.round(ch * dpr)
+      tv.style.width = `${cw}px`
+      tv.style.height = `${ch}px`
       if (nw !== W || nh !== H || !world) {
         W = nw
         H = nh
@@ -106,7 +116,9 @@ export function Scene(props: Props) {
       const dt = Math.min(0.05, (nowMs - last) / 1000)
       last = nowMs
       const g = cv.getContext('2d')
+      tags = []
       if (g && world) draw(g, nowMs, now, dt)
+      drawTags()
       raf = requestAnimationFrame(frame)
     }
 
@@ -208,6 +220,39 @@ export function Scene(props: Props) {
       particles = particles.filter((p) => p.life < p.max)
     }
 
+    /**
+     * The names above the other characters, written in real screen pixels so that they can be small (the pixel font of the scene
+     * cannot get below 3x5 logical pixels, which is large). A name that would run into another is moved up, or left out.
+     */
+    const drawTags = () => {
+      const g = tv.getContext('2d')
+      if (!g) return
+      const dpr = tv.width / (tv.clientWidth || 1)
+      g.setTransform(dpr, 0, 0, dpr, 0, 0)
+      g.clearRect(0, 0, tv.clientWidth, tv.clientHeight)
+      const fs = Math.max(8, Math.round(sc * 2.2))
+      g.font = `600 ${fs}px "Pixelify Sans", monospace`
+      g.textBaseline = 'alphabetic'
+      g.lineJoin = 'round'
+      g.lineWidth = 3
+      g.strokeStyle = '#1b1426'
+      g.fillStyle = '#ffffff'
+      const taken: [number, number, number, number][] = []
+      for (const t of tags) {
+        const tw = g.measureText(t.name).width
+        const x = Math.max(2, Math.min(tv.clientWidth - tw - 2, t.cx * sc - tw / 2))
+        const clash = (y: number) => taken.some(([l, tp, r, b]) => x < r + 2 && x + tw > l - 2 && y - fs < b && y > tp)
+        let y = t.top * sc - 4
+        for (let tries = 0; tries < 3 && clash(y); tries++) y -= fs + 3
+        if (y - fs < 0 || clash(y)) continue
+        g.globalAlpha = 0.92
+        g.strokeText(t.name, x, y)
+        g.fillText(t.name, x, y)
+        taken.push([x, y - fs, x + tw, y])
+      }
+      g.globalAlpha = 1
+    }
+
     /** The other characters stand behind yours, a little see-through, spread to both sides of the centre. */
     const drawOthers = (g: CanvasRenderingContext2D, others: Other[], nowMs: number, now: number, camY: number) => {
       const w = world!
@@ -217,7 +262,6 @@ export function Scene(props: Props) {
       let mid = 0
       places.forEach((v, j) => { if (Math.abs(v - 0.5) < Math.abs(places[mid] - 0.5)) mid = j })
       const slots = places.filter((_, j) => j !== mid)
-      const taken: [number, number, number, number][] = [] // the name tags drawn so far this frame: [left, top, right, bottom]
       others.forEach((o, i) => {
         let f = flights.get(o.id)
         if (!f) flights.set(o.id, (f = { from: o.score, to: o.score, start: 0, dur: 0 }))
@@ -235,19 +279,8 @@ export function Scene(props: Props) {
         if (top > H || top < -AVATAR_H) return
         g.globalAlpha = 0.62
         g.drawImage(avatarSprite(o.avatar), cx - AVATAR_W / 2, top)
-        // a name goes above its character; when it would run into another name it is moved up, and left out if there is no room
-        const name = o.nick.length > 6 ? o.nick.slice(0, 6) : o.nick
-        const tw = textWidth(name)
-        const left = Math.max(1, Math.min(W - tw - 1, Math.round(cx - tw / 2)))
-        const clash = (y: number) => taken.some(([l, t, r, b]) => left < r + 2 && left + tw > l - 2 && y < b + 1 && y + 5 > t - 1)
-        let ny = top - 7
-        for (let tries = 0; tries < 3 && clash(ny); tries++) ny -= 7
-        g.globalAlpha = 0.9
-        if (ny >= 0 && !clash(ny)) {
-          drawText(g, name, left, ny, '#ffffff', '#1b1426')
-          taken.push([left, ny, left + tw, ny + 5])
-        }
         g.globalAlpha = 1
+        tags.push({ name: o.nick.length > 8 ? o.nick.slice(0, 8) : o.nick, cx, top })
         if (rising && Math.floor(now * 24 + i) % 3 === 0) particles.push({ x: cx + (Math.random() - 0.5) * 8, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 6, vy: 16, life: 0, max: 0.5, color: '#ffffff', size: 1 })
       })
       for (const id of flights.keys()) if (!others.some((o) => o.id === id)) flights.delete(id)
@@ -264,6 +297,7 @@ export function Scene(props: Props) {
   return (
     <div className="scene" ref={wrap}>
       <canvas ref={canvas} role="img" aria-label="Tu personaje sube al cielo según tus puntos" />
+      <canvas ref={tagCanvas} className="tags" aria-hidden />
     </div>
   )
 }

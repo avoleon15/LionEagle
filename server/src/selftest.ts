@@ -320,6 +320,27 @@ check(sanitizeJoin({ nick: 'x'.repeat(5000) }).nick.length === 200, 'join: huge 
   game.dispose()
 }
 
+// ---- reading time before answering opens ----
+{
+  const members = ['a', 'b']
+  const game = new Game({ members: () => members, active: () => members, changed: () => {} }, QUESTIONS.slice(0, 7).map((x) => ({ ...x })), 5000)
+  const q0 = QUESTIONS.find((x) => x.prompt === game.view().prompt)!
+  const v = game.view()
+  check(v.readMs === 5000 && v.startsAt > Date.now() + 4000 && v.endsAt - v.startsAt === v.durationMs, 'read: answering opens after the reading time and the countdown lasts durationMs from then')
+  let early = false
+  try { game.submit('a', q0.answers[0].label) } catch (e) { early = e instanceof GameError }
+  check(early, 'read: an answer during the reading time is refused')
+  const realNow = Date.now
+  const base = realNow()
+  Date.now = () => base + 5100
+  try {
+    check(game.submit('a', q0.answers[0].label).valid === true, 'read: once the reading time is over answers are accepted')
+  } finally {
+    Date.now = realNow
+  }
+  game.dispose()
+}
+
 // ---- a question that cannot be played is caught before the game starts ----
 {
   const qs = QUESTIONS.slice(0, 7).map((x) => ({ ...x, answers: [...x.answers] }))
