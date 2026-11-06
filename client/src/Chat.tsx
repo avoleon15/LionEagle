@@ -19,11 +19,9 @@ interface Bubble {
 interface Props {
   players: PlayerView[]
   me: string
-  /** Players standing on the podium: once the game is over their messages appear over their heads (see Podium), not here. */
-  podium?: string[]
 }
 
-export function Chat({ players, me, podium = [] }: Props) {
+export function Chat({ players, me }: Props) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [bubbles, setBubbles] = useState<Bubble[]>([])
@@ -32,13 +30,10 @@ export function Chat({ players, me, podium = [] }: Props) {
   const [lift, setLift] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const before = useRef<Element | null>(null)
-  const podiumRef = useRef(podium)
-  podiumRef.current = podium
 
   useEffect(() => {
     const onMsg = (msg: ChatMessage) => {
-      if (msg.from !== me) sfx.pop()
-      if (podiumRef.current.includes(msg.from)) return
+      if (msg.from !== me) sfx.chat()
       setBubbles((b) => [...b.slice(-(MAX_BUBBLES - 1)), { msg, at: Date.now() }])
     }
     socket.on('chat:msg', onMsg)

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
-import type { Avatar } from '../../shared/protocol'
-import { climbValue, type Climb } from './climb'
+import type { Avatar, MapId } from '../../shared/protocol'
+import { climbValue, durationFor, type Climb } from './climb'
 import { AVATAR_H, AVATAR_W, avatarSprite } from './pixel/avatar'
 import { drawText, textWidth } from './pixel/font'
 import { MAX_SCORE, buildWorld, cloudSprite, drawStars, loadGamePicture, rng, type GamePicture, type World } from './pixel/world'
@@ -10,13 +10,24 @@ import { MAX_SCORE, buildWorld, cloudSprite, drawStars, loadGamePicture, rng, ty
 // logical resolution (240 px tall, like a handheld console screen) and scaled up with nearest-neighbour.
 
 const H0 = 240
-const TIER_COLOR: Record<number, string> = { 10: '#ffffff', 30: '#ffffff', 60: '#8ee06a', 80: '#7fd0ff', 100: '#ffd23f' }
+// The colour of each score, the same as in the ranking table (--t10 ... --t100 in styles.css), and a lighter tone of it for the sparks.
+const TIER_COLOR: Record<number, string> = { 10: '#7fe0ff', 30: '#5b8cff', 60: '#7be35a', 80: '#c77dff', 100: '#ffd23f' }
+const TIER_LIGHT: Record<number, string> = { 10: '#d6f6ff', 30: '#b9ccff', 60: '#d2f7c4', 80: '#e8ccff', 100: '#fff6c2' }
+/** The score tier of a gain of `pts` points (10, 30, 60, 80 or 100). */
+const tierOf = (pts: number) => [100, 80, 60, 30, 10].find((t) => pts >= t) ?? 10
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number }
 interface Cloud { x: number; y: number; speed: number; sprite: HTMLCanvasElement }
 
+/** Another player of the room: drawn in the background at the height of their score. */
+export interface Other { id: string; avatar: Avatar; nick: string; score: number }
+
 interface Props {
   avatar: Avatar
+  /** The background of this game (the same for every player). */
+  map: MapId
+  nick: string
+  others: Other[]
   climb: Climb
   /** Where the feet sit on screen, as a share of its height (lower when a box covers the middle). */
   focus: number
@@ -27,12 +38,16 @@ interface Props {
 export function Scene(props: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
+  const tagCanvas = useRef<HTMLCanvasElement>(null)
   const latest = useRef(props)
   latest.current = props
 
   useEffect(() => {
     const el = wrap.current!
     const cv = canvas.current!
+    const tv = tagCanvas.current!
+    let sc = 1 // screen pixels per logical pixel
+    let tags: { name: string; cx: number; top: number; mine?: boolean }[] = []
     let W = 160
     let H = H0
     let world: World | null = null
@@ -45,7 +60,13 @@ export function Scene(props: Props) {
     let popup: { text: string; color: string; at: number } | null = null
     let burstAt = 0
     let burstTier = 0
+    let trail = ['#ffffff'] // colours of the sparks that come off the rocket while the character climbs
+    let rings: { x: number; y: number; at: number; color: string }[] = [] // shock waves of the big explosions
+    let flashAt = 0
+    const burstedFor = new Map<string, number>() // for each other player, the climb whose end already had its burst
     let launchAt = 0
+    // Each other player rises on their own, as soon as their score goes up (nobody waits for a result card but you).
+    const flights = new Map<string, Climb>()
     let raf = 0
     let last = performance.now()
     let alive = true
@@ -72,6 +93,12 @@ export function Scene(props: Props) {
       cv.height = nh
       cv.style.width = `${nw * scale}px`
       cv.style.height = `${nh * scale}px`
+      sc = scale
+      const dpr = window.devicePixelRatio || 1
+      tv.width = Math.round(cw * dpr)
+      tv.height = Math.round(ch * dpr)
+      tv.style.width = `${cw}px`
+      tv.style.height = `${ch}px`
       if (nw !== W || nh !== H || !world) {
         W = nw
         H = nh
@@ -86,7 +113,7 @@ export function Scene(props: Props) {
     // A picture made outside the code replaces the drawn column when it exists.
     function load(wide: boolean) {
       pictureWide = wide
-      loadGamePicture(wide).then((found) => {
+      loadGamePicture(wide, latest.current.map).then((found) => {
         if (!alive || !found || wide !== pictureWide) return
         picture = found
         build()
@@ -100,23 +127,49 @@ export function Scene(props: Props) {
       const dt = Math.min(0.05, (nowMs - last) / 1000)
       last = nowMs
       const g = cv.getContext('2d')
+      tags = []
       if (g && world) draw(g, nowMs, now, dt)
+      drawTags()
       raf = requestAnimationFrame(frame)
+    }
+
+    /** The sparks at the end of a climb, in the colour of the score; a "Rey León" (100) is a big explosion with shock waves and a flash. */
+    const burst = (x: number, y: number, tier: number, nowMs: number) => {
+      const color = TIER_COLOR[tier] ?? '#ffffff'
+      const light = TIER_LIGHT[tier] ?? '#ffffff'
+      if (tier >= 100) {
+        const colors = ['#ffd23f', '#fff6c2', '#ffffff', '#ff9f1c', '#ff5a1f']
+        for (let i = 0; i < 90; i++) {
+          const ang = Math.random() * Math.PI * 2
+          const sp = 30 + Math.random() * 95
+          particles.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 10, life: 0, max: 0.8 + Math.random() * 0.8, color: colors[i % colors.length], size: i % 5 === 0 ? 3 : i % 3 === 0 ? 2 : 1 })
+        }
+        rings.push({ x, y, at: nowMs, color: '#fff6c2' }, { x, y, at: nowMs + 90, color: '#ffd23f' })
+        flashAt = nowMs
+        return
+      }
+      const count = tier >= 80 ? 22 : tier >= 60 ? 16 : tier >= 30 ? 12 : 8
+      for (let i = 0; i < count; i++) {
+        const ang = (i / count) * Math.PI * 2 + (i % 3) * 0.3
+        const sp = 25 + (i % 5) * 9
+        particles.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 12, life: 0, max: 0.7 + (i % 4) * 0.12, color: i % 3 === 0 ? '#ffffff' : i % 2 === 0 ? light : color, size: 1 })
+      }
     }
 
     const draw = (g: CanvasRenderingContext2D, nowMs: number, now: number, dt: number) => {
       const w = world!
-      const { avatar, climb, focus, launch } = latest.current
+      const { avatar, nick, others, climb, focus, launch } = latest.current
       const worldH = w.canvas.height
 
       // a new climb: "+points" when it starts, sparkles when it ends
       if (climb !== seenClimb) {
         if (seenClimb && climb.to > climb.from) {
           const pts = Math.round(climb.to - climb.from)
-          const tier = Math.min(100, pts)
+          const tier = tierOf(pts)
           popup = { text: `+${pts}`, color: TIER_COLOR[tier] ?? '#ffffff', at: climb.start }
           burstAt = climb.start + climb.dur
           burstTier = tier
+          trail = [TIER_COLOR[tier] ?? '#ffffff', TIER_LIGHT[tier] ?? '#ffffff']
         }
         seenClimb = climb
       }
@@ -148,6 +201,8 @@ export function Scene(props: Props) {
         if (sy > -20 && sy < H + 4) g.drawImage(c.sprite, Math.round(c.x), sy)
       }
 
+      drawOthers(g, others, nowMs, now, camY)
+
       const x = Math.round(W / 2)
       const top = Math.round(footY - AVATAR_H - camY)
       // shadow on the grass while close to the ground
@@ -161,7 +216,7 @@ export function Scene(props: Props) {
         g.fillRect(x - Math.floor((sw - 4) / 2), sy + 1, sw - 4, 1)
       }
       if (rising && Math.floor(now * 24) % 2 === 0) {
-        particles.push({ x: x + (Math.random() - 0.5) * 10, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 8, vy: 18, life: 0, max: 0.6, color: '#ffffff', size: 1 })
+        particles.push({ x: x + (Math.random() - 0.5) * 10, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 8, vy: 18, life: 0, max: 0.6, color: trail[Math.floor(Math.random() * trail.length)], size: burstTier >= 100 ? 2 : 1 })
       }
       if (lift > 0) {
         const f = Math.floor(now * 20) % 2
@@ -169,17 +224,14 @@ export function Scene(props: Props) {
         g.fillStyle = '#ff7a1a'; g.fillRect(x - 1, top + AVATAR_H + 3 + f, 2, 3)
         if (Math.floor(now * 30) % 2 === 0) particles.push({ x, y: top + AVATAR_H + 3, vx: (Math.random() - 0.5) * 14, vy: 20, life: 0, max: 0.45, color: '#ffe9a8', size: 1 })
       }
-      if (top > -AVATAR_H) g.drawImage(avatarSprite(avatar), x - AVATAR_W / 2, top)
+      if (top > -AVATAR_H) {
+        g.drawImage(avatarSprite(avatar), x - AVATAR_W / 2, top)
+        tags.push({ name: nick.length > 14 ? nick.slice(0, 14) : nick, cx: x, top, mine: true })
+      }
 
       if (burstAt && nowMs >= burstAt) {
         burstAt = 0
-        const count = burstTier >= 100 ? 28 : burstTier >= 80 ? 16 : burstTier >= 60 ? 10 : 6
-        const colors = burstTier >= 100 ? ['#ffd23f', '#fff6c2', '#ffffff'] : burstTier >= 80 ? ['#7fd0ff', '#d6f0ff'] : ['#8ee06a', '#d6ffc2', '#ffffff']
-        for (let i = 0; i < count; i++) {
-          const ang = (i / count) * Math.PI * 2 + (i % 3) * 0.3
-          const sp = 25 + (i % 5) * 9
-          particles.push({ x, y: top + AVATAR_H / 2, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 12, life: 0, max: 0.7 + (i % 4) * 0.12, color: colors[i % colors.length], size: burstTier >= 100 && i % 4 === 0 ? 2 : 1 })
-        }
+        burst(x, top + AVATAR_H / 2, burstTier, nowMs)
       }
       if (popup) {
         const u = (nowMs - popup.at) / 1000
@@ -196,8 +248,103 @@ export function Scene(props: Props) {
         g.fillStyle = p.color
         g.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size)
       }
+      // the shock waves of an explosion: rings that grow and fade
+      for (const r of rings) {
+        const u = (nowMs - r.at) / 1000
+        if (u < 0 || u > 0.7) continue
+        const rad = u * 90
+        g.globalAlpha = Math.max(0, 1 - u / 0.7)
+        g.fillStyle = r.color
+        const steps = Math.max(24, Math.floor(rad * 6))
+        for (let i = 0; i < steps; i++) {
+          const a = (i / steps) * Math.PI * 2
+          g.fillRect(Math.round(r.x + Math.cos(a) * rad), Math.round(r.y + Math.sin(a) * rad), 2, 2)
+        }
+      }
+      rings = rings.filter((r) => nowMs - r.at < 700)
+      if (flashAt) {
+        const a = 0.5 - ((nowMs - flashAt) / 1000) * 2.2
+        if (a <= 0) flashAt = 0
+        else { g.globalAlpha = a; g.fillStyle = '#fff6c2'; g.fillRect(0, 0, W, H) }
+      }
       g.globalAlpha = 1
       particles = particles.filter((p) => p.life < p.max)
+    }
+
+    /**
+     * The names above the other characters, written in real screen pixels so that they can be small (the pixel font of the scene
+     * cannot get below 3x5 logical pixels, which is large). A name that would run into another is moved up, or left out.
+     */
+    const drawTags = () => {
+      const g = tv.getContext('2d')
+      if (!g) return
+      const dpr = tv.width / (tv.clientWidth || 1)
+      g.setTransform(dpr, 0, 0, dpr, 0, 0)
+      g.clearRect(0, 0, tv.clientWidth, tv.clientHeight)
+      const fs = Math.max(8, Math.round(sc * 2.2))
+      g.font = `600 ${fs}px "Pixelify Sans", monospace`
+      g.textBaseline = 'alphabetic'
+      g.lineJoin = 'round'
+      g.lineWidth = 3
+      g.strokeStyle = '#1b1426'
+      g.fillStyle = '#ffffff'
+      const taken: [number, number, number, number][] = []
+      // yours first: it always gets its place and the others move around it
+      for (const t of [...tags].sort((p, q) => Number(!!q.mine) - Number(!!p.mine))) {
+        g.font = `${t.mine ? 700 : 600} ${t.mine ? fs + 1 : fs}px "Pixelify Sans", monospace`
+        const tw = g.measureText(t.name).width
+        const x = Math.max(2, Math.min(tv.clientWidth - tw - 2, t.cx * sc - tw / 2))
+        const clash = (y: number) => taken.some(([l, tp, r, b]) => x < r + 2 && x + tw > l - 2 && y - fs < b && y > tp)
+        let y = t.top * sc - 4
+        if (!t.mine) for (let tries = 0; tries < 3 && clash(y); tries++) y -= fs + 3
+        if (y - fs < 0 || (!t.mine && clash(y))) continue
+        g.globalAlpha = t.mine ? 1 : 0.92
+        g.strokeStyle = t.mine ? '#000000' : '#1b1426'
+        g.fillStyle = t.mine ? '#ffd23f' : '#ffffff'
+        g.lineWidth = t.mine ? 3.5 : 3
+        g.strokeText(t.name, x, y)
+        g.fillText(t.name, x, y)
+        taken.push([x, y - fs, x + tw, y])
+      }
+      g.globalAlpha = 1
+    }
+
+    /** The other characters stand behind yours, fully opaque, spread to both sides of the centre. */
+    const drawOthers = (g: CanvasRenderingContext2D, others: Other[], nowMs: number, now: number, camY: number) => {
+      const w = world!
+      // Everybody gets a place across the width (the middle one is yours); the more players, the closer they stand.
+      const total = others.length + 1
+      const places = Array.from({ length: total }, (_, j) => (total === 1 ? 0.5 : 0.08 + (0.84 * j) / (total - 1)))
+      let mid = 0
+      places.forEach((v, j) => { if (Math.abs(v - 0.5) < Math.abs(places[mid] - 0.5)) mid = j })
+      const slots = places.filter((_, j) => j !== mid)
+      others.forEach((o, i) => {
+        let f = flights.get(o.id)
+        if (!f) flights.set(o.id, (f = { from: o.score, to: o.score, start: 0, dur: 0 }))
+        if (o.score !== f.to) {
+          const shown = climbValue(f, nowMs)
+          f = o.score > f.to ? { from: shown, to: o.score, start: nowMs, dur: durationFor(o.score - shown) } : { from: o.score, to: o.score, start: nowMs, dur: 0 }
+          flights.set(o.id, f)
+        }
+        const score = climbValue(f, nowMs)
+        const foot = w.footLow - (Math.min(MAX_SCORE, Math.max(0, score)) / MAX_SCORE) * (w.footLow - w.footHigh)
+        const rising = nowMs > f.start && nowMs < f.start + f.dur
+        const gain = f.to - f.from
+        const tier = tierOf(gain)
+        const bob = score > 2 && !rising ? Math.round(Math.sin(now * 2 + i * 1.7) * 1.2) : 0
+        const cx = Math.round(W * slots[i])
+        const top = Math.round(foot - AVATAR_H - camY + bob)
+        if (top > H || top < -AVATAR_H) return
+        g.drawImage(avatarSprite(o.avatar), cx - AVATAR_W / 2, top)
+        tags.push({ name: o.nick.length > 8 ? o.nick.slice(0, 8) : o.nick, cx, top })
+        if (rising && Math.floor(now * 24 + i) % 3 === 0) particles.push({ x: cx + (Math.random() - 0.5) * 8, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 6, vy: 16, life: 0, max: 0.5, color: Math.random() < 0.5 ? TIER_COLOR[tier] : TIER_LIGHT[tier], size: tier >= 100 ? 2 : 1 })
+        // when their climb ends on screen: the sparks of their score (an explosion for a Rey León)
+        if (gain > 0 && f.dur > 0 && nowMs >= f.start + f.dur && nowMs - (f.start + f.dur) < 1500 && burstedFor.get(o.id) !== f.start) {
+          burstedFor.set(o.id, f.start)
+          burst(cx, top + AVATAR_H / 2, tier, nowMs)
+        }
+      })
+      for (const id of flights.keys()) if (!others.some((o) => o.id === id)) flights.delete(id)
     }
 
     raf = requestAnimationFrame(frame)
@@ -211,6 +358,7 @@ export function Scene(props: Props) {
   return (
     <div className="scene" ref={wrap}>
       <canvas ref={canvas} role="img" aria-label="Tu personaje sube al cielo según tus puntos" />
+      <canvas ref={tagCanvas} className="tags" aria-hidden />
     </div>
   )
 }

@@ -4,7 +4,6 @@ import {
   CHAT_GAP_MS,
   CHAT_MAX,
   CODE_LENGTH,
-  TOMATO_GAP_MS,
   QUESTIONS_PER_GAME,
   MAX_NICK,
   MAX_PLAYERS,
@@ -14,8 +13,6 @@ import {
   type JoinPayload,
   type Phase,
   type RoomState,
-  type TomatoSend,
-  type TomatoSplat,
 } from '../../shared/protocol'
 import { HOST_HANDOVER_MS } from './config'
 import * as db from './db'
@@ -39,8 +36,6 @@ interface Player {
   tz: string | null
   /** When this player last sent a quick message (they are rate limited). */
   chatAt: number
-  /** When this player last threw a tomato. */
-  tomatoAt: number
 }
 
 interface Room {
@@ -152,7 +147,7 @@ export function join(
 
   if (!p.code) {
     const room: Room = { code: newCode(), hostId: '', phase: 'lobby', players: new Map(), game: null, selected: null, played: new Set(), handoverTimer: null, gameNo: 0 }
-    const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId), tz: p.tz ?? null, chatAt: 0, tomatoAt: 0 }
+    const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId), tz: p.tz ?? null, chatAt: 0 }
     room.hostId = player.id
     room.players.set(player.id, player)
     rooms.set(room.code, room)
@@ -188,7 +183,7 @@ export function join(
   const taken = [...room.players.values()].some((q) => q.nick.toLowerCase() === nick.toLowerCase())
   if (taken) throw new RoomError('Ese apodo ya está en uso en la sala.')
 
-  const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId), tz: p.tz ?? null, chatAt: 0, tomatoAt: 0 }
+  const player: Player = { id: randomUUID(), nick, avatar, socketId, dropTimer: null, device: deviceKey(p.deviceId), tz: p.tz ?? null, chatAt: 0 }
   room.players.set(player.id, player)
   return { room, player }
 }
@@ -350,24 +345,6 @@ export function chat(socketId: string, send: ChatSend): { room: Room; message: C
   if (now - player.chatAt < CHAT_GAP_MS) throw new RoomError('Más despacio.')
   player.chatAt = now
   return { room, message: { id: randomUUID(), from: player.id, text } }
-}
-
-/**
- * A tomato thrown at a player of the room: in the waiting room or once the game is over (never during the questions),
- * at most one every half second per thrower. Nothing is stored.
- */
-export function tomato(socketId: string, send: TomatoSend): { room: Room; splat: TomatoSplat } {
-  const found = findBySocket(socketId)
-  if (!found) throw new RoomError('No estás en una sala.')
-  const { room, player } = found
-  if (!(room.phase === 'lobby' || room.game?.isFinished())) throw new RoomError('Los tomates se tiran en la sala de espera y al final de la partida.')
-  const at = typeof send?.at === 'string' ? send.at : ''
-  if (!room.players.has(at)) throw new RoomError('Ese jugador no está en la sala.')
-  const now = Date.now()
-  if (now - player.tomatoAt < TOMATO_GAP_MS * 0.9) throw new RoomError('Más despacio.')
-  player.tomatoAt = now
-  const unit = (n: unknown) => Math.min(1, Math.max(0, Number.isFinite(Number(n)) ? Number(n) : 0.5))
-  return { room, splat: { id: randomUUID(), from: player.id, at, x: unit(send?.x), y: unit(send?.y) } }
 }
 
 export function answer(socketId: string, text: string) {

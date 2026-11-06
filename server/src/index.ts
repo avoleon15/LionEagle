@@ -1,6 +1,6 @@
 import { notifySuggestion } from './notify'
 import { createServer } from 'node:http'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join as pathJoin } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import express from 'express'
@@ -83,8 +83,15 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'No encontrado.' })
 
 // In production the server also serves the built client; /ABCD links fall back to index.html.
 if (existsSync(clientDist)) {
-  app.use(express.static(clientDist))
-  app.get('*', (_req, res) => res.sendFile(pathJoin(clientDist, 'index.html')))
+  app.use(express.static(clientDist, { index: false }))
+  // The share tags (title, text and image shown by WhatsApp and others) need an absolute address, so the page is filled in per request.
+  const page = readFileSync(pathJoin(clientDist, 'index.html'), 'utf8')
+  app.get('*', (req, res) => {
+    const host = req.get('host') ?? ''
+    const proto = req.get('x-forwarded-proto')?.split(',')[0].trim() === 'https' || req.secure ? 'https' : 'http'
+    const origin = /^[A-Za-z0-9.-]+(:\d{1,5})?$/.test(host) ? `${proto}://${host}` : ''
+    res.type('html').send(page.replaceAll('__ORIGIN__', origin))
+  })
 }
 
 // Whatever fails while a request is read (a body that is not JSON, one that is too big) answers with a short JSON
@@ -196,16 +203,6 @@ io.on('connection', (socket) => {
     }
   })
 
-  socket.on('tomato:send', (send, ack) => {
-    const reply = replier<null>(ack)
-    try {
-      const { room, splat } = rooms.tomato(socket.id, send)
-      reply({ ok: true, data: null })
-      io.to(room.code).emit('tomato:splat', splat)
-    } catch (e) {
-      reply({ ok: false, error: errorText(e) })
-    }
-  })
 
   socket.on('game:reset', (ack) => {
     const reply = replier<null>(ack)

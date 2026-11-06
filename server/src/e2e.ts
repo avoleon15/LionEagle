@@ -34,7 +34,7 @@ const base = `http://localhost:${port}`
 
 let child: ChildProcess | null = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
   cwd: serverDir,
-  env: { ...process.env, PORT: String(port), DB_PATH: join(dir, 'e2e.db'), ADMIN_TOKEN: 'e2e', LE_NO_SEED: '1', LE_ROUND_MS: '3000', LE_REVEAL_MS: '400', LE_HOST_HANDOVER_MS: '500', NODE_NO_WARNINGS: '1' },
+  env: { ...process.env, PORT: String(port), DB_PATH: join(dir, 'e2e.db'), ADMIN_TOKEN: 'e2e', LE_NO_SEED: '1', LE_ROUND_MS: '3000', LE_READ_MS: '0', LE_REVEAL_MS: '400', LE_HOST_HANDOVER_MS: '500', NODE_NO_WARNINGS: '1' },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 let log = ''
@@ -174,20 +174,17 @@ const av = { color: 1, face: 2, hat: 4 }
   B.close()
 }
 
-// ---- 4a. free chat and tomatoes ----
+// ---- 4a. free chat ----
 {
   const A = await connect()
   const B = await connect()
   let st: any
   const seen: any[] = []
-  const splats: any[] = []
   A.on('room:state', (r: any) => (st = r))
   B.on('chat:msg', (m: any) => seen.push(m))
-  B.on('tomato:splat', (t: any) => splats.push(t))
   const ra = await emit(A, 'room:join', { nick: 'Ana', avatar: av })
   const rb = await emit(B, 'room:join', { code: ra.data.room.code, nick: 'Beto', avatar: av })
   const idA = ra.data.playerId
-  const idB = rb.data.playerId
   // lobby
   check((await emit(A, 'chat:send', { text: '  hola   a \n todos  ' })).ok === true, 'chat: works in the waiting room')
   await sleep(100)
@@ -210,20 +207,10 @@ const av = { color: 1, face: 2, hat: 4 }
   const outsider = await connect()
   check((await emit(outsider, 'chat:send', { text: 'hola' })).ok === false, 'chat: somebody who is not in a room cannot send')
   outsider.close()
-  // tomatoes in the lobby
-  check((await emit(A, 'tomato:send', { at: idB, x: 0.25, y: 5 })).ok === true, 'tomato: can be thrown at a player in the waiting room')
-  await sleep(100)
-  check(splats.length === 1 && splats[0].at === idB && splats[0].from === idA && splats[0].x === 0.25 && splats[0].y === 1, 'tomato: everybody sees it on the right player, and the spot is kept inside')
-  check((await emit(A, 'tomato:send', { at: idB, x: 0.5, y: 0.5 })).ok === false, 'tomato: not twice within half a second')
-  await sleep(600)
-  check((await emit(A, 'tomato:send', { at: 'nadie', x: 0.5, y: 0.5 })).ok === false, 'tomato: the target must be a player of the room')
-  check((await emit(A, 'tomato:send', { x: 0.5, y: 0.5 } as any)).ok === false, 'tomato: a target is required')
-  check((await emit(A, 'tomato:send', { at: idA, x: 0.5, y: 0.5 })).ok === true, 'tomato: a player can also hit themselves')
   await emit(A, 'game:start')
   await sleep(200)
   await sleep(1600)
   check((await emit(A, 'chat:send', { text: 'a jugar' })).ok === true, 'chat: works during the questions')
-  check((await emit(A, 'tomato:send', { at: idB, x: 0.5, y: 0.5 })).ok === false, 'tomato: not during the questions')
   // play every round to the end
   for (let i = 0; i < 12 && st.game.stage !== 'final'; i++) {
     if (st.game.stage === 'answering') {
@@ -236,18 +223,9 @@ const av = { color: 1, face: 2, hat: 4 }
   check(st.game.stage === 'final', 'the test game reaches the final')
   await sleep(1600)
   check((await emit(A, 'chat:send', { text: 'buen juego' })).ok === true, 'chat: works at the end')
-  await sleep(600)
-  const before = splats.length
-  check((await emit(A, 'tomato:send', { at: idB, x: 0.3, y: 0.4 })).ok === true, 'tomato: can be thrown at a podium player at the end')
-  await sleep(600)
-  check((await emit(A, 'tomato:send', { at: idA, x: 0.3, y: 0.4 })).ok === true, 'tomato: and at any other player')
-  await sleep(100)
-  check(splats.length === before + 2 && splats[before].at === idB && splats[before + 1].at === idA, 'tomato: each splat carries its target')
-  await sleep(100)
   await emit(A, 'game:reset')
   await sleep(200)
   check(st.phase === 'lobby', 'back in the waiting room')
-  check((await emit(B, 'tomato:send', { at: idA, x: 0.5, y: 0.5 })).ok === true, 'tomato: again in the waiting room after the game')
   A.close()
   B.close()
 }

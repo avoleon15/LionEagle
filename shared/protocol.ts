@@ -35,6 +35,10 @@ const TIER_LABELS: Record<number, string> = {
 }
 export const tierLabel = (points: number) => TIER_LABELS[points] ?? ''
 
+/** The backgrounds a game can be played on: one is picked at random when the game starts (client/public/bg/ and bg/<name>/). */
+export const MAPS = ['classic'] as const
+export type MapId = (typeof MAPS)[number]
+
 export type GameStage = 'answering' | 'reveal' | 'final'
 
 export interface RevealResult {
@@ -52,11 +56,14 @@ export interface GameView {
   stage: GameStage
   round: number // 0-based
   total: number
+  map: MapId // the background of this game, the same for every player
   category: string
   prompt: string
   hint: string // a short clue about what kind of answer is wanted (may be empty)
   endsAt: number // server clock, ms; 0 when there is no countdown
   durationMs: number // full length of the current countdown
+  startsAt: number // server clock, ms: answers open from here (the question is shown to be read before); 0 outside the answering stage
+  readMs: number // how long the reading pause lasts in this round
   serverNow: number // server clock when this state was built, to correct clock skew
   scores: Record<string, number>
   prevScores: Record<string, number> // the totals when this round began (scores already include the answers locked in since)
@@ -102,21 +109,6 @@ export interface ChatMessage {
   text: string
 }
 
-/**
- * Tomatoes thrown at a player: in the waiting room (at anybody in the crowd) and once the game is over (at anybody on the podium).
- * `at` is the player it hits; x and y are where it lands, from 0 to 1 across that player's step (or slot).
- */
-export const TOMATO_GAP_MS = 500
-export interface TomatoSend {
-  at: string
-  x: number
-  y: number
-}
-export interface TomatoSplat extends TomatoSend {
-  id: string
-  from: string
-}
-
 export interface SuggestionPayload {
   prompt: string
   category: string
@@ -156,11 +148,9 @@ export interface ClientToServer {
   'game:answer': (text: string, ack: (r: Ack<AnswerResult>) => void) => void
   'game:reset': (ack: (r: Ack<null>) => void) => void
   'chat:send': (p: ChatSend, ack: (r: Ack<null>) => void) => void
-  'tomato:send': (p: TomatoSend, ack: (r: Ack<null>) => void) => void
 }
 
 export interface ServerToClient {
   'room:state': (room: RoomState) => void
   'chat:msg': (m: ChatMessage) => void
-  'tomato:splat': (t: TomatoSplat) => void
 }

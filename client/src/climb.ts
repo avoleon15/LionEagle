@@ -24,7 +24,7 @@ export function climbValue(c: Climb, now: number): number {
 export const climbing = (c: Climb, now: number) => c.to !== c.from && now < c.start + c.dur
 
 /** A slower climb for more points: 10 points ≈ 1.8 s, 100 points ≈ 4.2 s. */
-const durationFor = (points: number) => 1500 + Math.min(150, Math.max(0, points)) * 27
+export const durationFor = (points: number) => 1500 + Math.min(150, Math.max(0, points)) * 27
 
 /** Follows `score`: the first value is shown as is (a reload or a late join does not animate), increases climb. */
 export function useClimb(score: number): Climb {

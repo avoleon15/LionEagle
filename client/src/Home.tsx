@@ -3,6 +3,7 @@ import { AVATAR_OPTIONS, CODE_LENGTH, MAX_NICK, type Avatar as AvatarData } from
 import { Avatar, COLORS } from './Avatar'
 import type { Profile } from './session'
 import { SuggestBox } from './SuggestBox'
+import { APP_VERSION } from './version'
 
 interface Props {
   profile: Profile
@@ -95,6 +96,7 @@ export function Home({ profile, onProfile, initialCode, error, busy, onCreate, o
         </button>
       </section>
       {suggesting && <SuggestBox nick={profile.nick} categories={[]} onClose={() => setSuggesting(false)} />}
+      <p className="version">Versión {APP_VERSION}</p>
     </main>
   )
 }

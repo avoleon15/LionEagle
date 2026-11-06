@@ -1,1 +1,5 @@
 Fondos hechos en ChatGPT: home.png, home-wide.png, game-1.png (suelo), game-2.png (cielo), game-3.png (espacio). Ver art/PROMPTS.md.
+
+Mapas: el juego elige uno al azar al empezar cada partida (lista MAPS en shared/protocol.ts).
+- classic: map-01..14.png y map-wide-01..14.png aqui mismo.
+Para agregar otro mapa: carpeta nueva con el mismo formato, su nombre en MAPS y su altura de pies en MAP_FEET (client/src/pixel/world.ts).

@@ -6,7 +6,7 @@ export function SoundToggle({ className = '' }: { className?: string }) {
   const [off, setOff] = useState(isMuted())
   useEffect(() => onMutedChange(() => setOff(isMuted())), [])
   return (
-    <button className={`soundbtn ${className}`} aria-label={off ? 'Activar sonido' : 'Silenciar'} aria-pressed={!off} title={off ? 'Sonido apagado' : 'Sonido encendido'} onClick={() => setMuted(!off)}>
+    <button className={`soundbtn ${className}`} aria-label="Sonido" aria-pressed={!off} title={off ? 'Sonido apagado' : 'Sonido encendido'} onClick={() => setMuted(!off)}>
       {off ? '♪✕' : '♪'}
     </button>
   )

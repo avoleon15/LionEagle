@@ -6,7 +6,6 @@ import { groupCategories } from './categories'
 import { softBreaks } from './nickname'
 import { SuggestBox } from './SuggestBox'
 import { socket } from './socket'
-import { SplatLayer, TomatoButton, useSplats, useThrower } from './Tomato'
 
 interface Props {
   room: RoomState
@@ -21,18 +20,18 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
   const [copied, setCopied] = useState(false)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const splats = useSplats()
-  const thrower = useThrower()
   const isHost = room.hostId === me
   const link = `${window.location.origin}/${room.code}`
 
+  // The text goes before the link so that it reads well in a chat; WhatsApp and others turn the link into a card with the image and title.
+  const invite = `¡Únete a mi lobby en Altus! 🦁🦅 Trivia donde gana quien responde lo que casi nadie diría. Entra a mi lobby (código ${room.code}):\n${link}`
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(link)
+      await navigator.clipboard.writeText(invite)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      window.prompt('Copia el enlace:', link)
+      window.prompt('Copia la invitación:', invite)
     }
   }
 
@@ -101,9 +100,7 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
                 </span>
                 <span className="face">
                   <Avatar a={p.avatar} size={44} />
-                  <TomatoButton at={p.id} name={p.nick} thrower={thrower} size={18} />
                 </span>
-                <SplatLayer splats={splats.filter((t) => t.at === p.id)} />
                 {!p.connected && <span className="off">sin conexión</span>}
               </li>
             )
