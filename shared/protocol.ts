@@ -36,7 +36,7 @@ const TIER_LABELS: Record<number, string> = {
 export const tierLabel = (points: number) => TIER_LABELS[points] ?? ''
 
 /** The backgrounds a game can be played on: one is picked at random when the game starts (client/public/bg/ and bg/<name>/). */
-export const MAPS = ['classic', 'dinos'] as const
+export const MAPS = ['classic'] as const
 export type MapId = (typeof MAPS)[number]
 
 export type GameStage = 'answering' | 'reveal' | 'final'

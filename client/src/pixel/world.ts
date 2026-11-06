@@ -35,7 +35,7 @@ export interface GamePicture {
 }
 
 /** Where the feet stand on the bottom piece of each extra map (share of the piece's height, from its lower edge). */
-const MAP_FEET: Record<string, { portrait: number; wide: number }> = { dinos: { portrait: 0.28, wide: 0.28 } }
+const MAP_FEET: Record<string, { portrait: number; wide: number }> = {}
 
 /** On a wide screen the landscape pieces are used when they exist; otherwise the portrait ones. `map` is the game's background. */
 export async function loadGamePicture(preferWide: boolean, map = 'classic'): Promise<GamePicture | null> {
