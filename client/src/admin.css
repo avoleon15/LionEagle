@@ -250,3 +250,5 @@ main.admin.login { display: grid; place-items: center; padding-top: 0; }
 .admin .dropzone b { color: var(--gold); font-size: 1rem; }
 .admin .dropzone:hover, .admin .dropzone.on { border-color: var(--gold); }
 .admin .dropzone input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+.tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }

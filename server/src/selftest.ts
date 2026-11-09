@@ -633,9 +633,19 @@ for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content 
   check(lg.id === gs && lg.region === 'America/Guatemala' && lg.rounds === 2 && lg.finishedAt === null, 'games: newest first with region and rounds so far')
   check(lg.players.map((p) => `${p.nick}:${p.score}:${p.place}`).join(' ') === 'Ana:40:1 Beto:40:1 Cata:0:3', 'games: scores and places (ties share the lowest number, players ordered by place)')
   check(lg.players[1].answers[0].answer === null && lg.players[1].answers[1].answer === 'Tres' && lg.players[2].answers[0].answer === null, 'games: no valid answer is null, also for a player who left')
-  for (let i = 0; i < 55; i++) metrics.saveSummary(metrics.gameStarted(2, [], gt + 20_000_000 + i), { players: ['X'], rounds: [] })
-  const kept = metrics.lastGames(100)
-  check(kept.length === 50 && kept[0].id > gs && kept.every((g) => g.id >= kept[49].id), 'games: only the 50 newest keep their detail')
+  for (let i = 0; i < 105; i++) metrics.saveSummary(metrics.gameStarted(2, [], gt + 20_000_000 + i), { players: ['X'], rounds: [] })
+  const kept = metrics.lastGames(200)
+  check(kept.length === 100 && kept[0].id > gs && kept.every((g) => g.id >= kept[99].id), 'games: only the 100 newest keep their detail')
+  const gx = metrics.gameStarted(2, [], gt + 30_000_000)
+  const lion = (nick: string, answer: string | null, points: number) => ({ nick, answer, points })
+  metrics.saveSummary(gx, { players: ['A', 'B'], rounds: [
+    { questionId: 'q1', category: 'Cat', prompt: 'Pregunta 1', results: [lion('A', 'Uno', 100), lion('B', null, 0)] },
+    { questionId: 'q2', category: 'Cat', prompt: 'Pregunta 2', results: [lion('A', 'Dos', 30), lion('B', 'Dos', 30)] },
+  ] })
+  const ex = metrics.exportGames()
+  const q1 = ex.questions.find((q) => q.questionId === 'q1')
+  check(ex.games.length === 100 && ex.games[0].id === gx && ex.games[0].rounds[0].questionId === 'q1', 'export: the raw games come with the question of every round')
+  check(!!q1 && q1.timesAsked === 1 && q1.reyLeon === 1 && q1.noAnswer === 1 && q1.reyLeonShare === 1 && q1.answers[0].answer === 'Uno', 'export: per-question summary counts Rey León and unanswered')
 }
 
 // --- mentions at the end of the game ---

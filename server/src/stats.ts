@@ -254,3 +254,49 @@ export function resetStats(id?: string): void {
     handle().exec('DELETE FROM answer_log; DELETE FROM question_stats;')
   }
 }
+
+export interface QuestionsReport {
+  generatedAt: string
+  note: string
+  questions: {
+    id: string
+    prompt: string
+    category: string
+    status: string
+    timesAsked: number
+    answeredByPlayers: number
+    validAttempts: number
+    wrongAttempts: number
+    avgScore: number | null
+    /** Every answer on the list, with how many times players typed it (and the ways they typed it). */
+    correctAnswers: { answer: string; points: number; times: number; typedAs: { text: string; count: number }[] }[]
+    /** What players typed that was not on the list, most frequent first. */
+    wrongAnswers: { text: string; count: number; ignored: boolean }[]
+  }[]
+}
+
+/** Every question with all its answers and everything players typed that did not count. */
+export function questionsReport(): QuestionsReport {
+  const questions = listQuestions().flatMap((q) => {
+    const d = detail(q.id)
+    if (!d) return []
+    return [{
+      id: q.id,
+      prompt: q.prompt,
+      category: q.category,
+      status: q.status,
+      timesAsked: d.asked,
+      answeredByPlayers: d.answered,
+      validAttempts: d.validTotal,
+      wrongAttempts: d.unknownTotal,
+      avgScore: d.avgScore,
+      correctAnswers: d.answers.map((a) => ({ answer: a.label, points: a.points, times: a.count, typedAs: a.variants })),
+      wrongAnswers: d.unknown.map((u) => ({ text: u.text, count: u.count, ignored: u.ignored })),
+    }]
+  })
+  return {
+    generatedAt: new Date().toISOString(),
+    note: 'Datos de todas las partidas desde el último reinicio de estadísticas. wrongAnswers = textos escritos que no estaban en la lista.',
+    questions,
+  }
+}
