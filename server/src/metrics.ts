@@ -5,7 +5,7 @@ import { handle } from './db'
 // browsers they came from, and which questions come up most. No address (IP) is ever stored: a browser is
 // told apart by the hash of a random id it made up and keeps in its own storage, and its region is only the time
 // zone it reports (e.g. America/Guatemala). Nicknames are kept ONLY in game_summary (what each player answered
-// in the last 50 games, for the admin), which is pruned to the 50 newest games every time a game starts.
+// in the last 100 games, for the admin), which is pruned to the 100 newest games every time a game starts.
 
 /** Guatemala has no daylight saving time: its days are UTC-6. */
 const DAY_OFFSET_MS = -6 * 3_600_000
@@ -54,6 +54,8 @@ export function cleanZone(raw: unknown): string | undefined {
 }
 
 export interface RoundSummary {
+  questionId?: string // missing in games saved before the export existed
+  category?: string
   prompt: string
   results: { nick: string; answer: string | null; points: number }[]
 }
@@ -65,7 +67,7 @@ export interface GameData {
 }
 
 /** How many games keep their detail. */
-export const KEEP_GAMES = 50
+export const KEEP_GAMES = 100
 
 /** Saves (or replaces) the detail of a game; called when it starts and after every round, so abandoned games are there too. Also drops the detail of older games. */
 export function saveSummary(id: number, data: GameData): void {
@@ -261,5 +263,103 @@ export function overview(now = Date.now(), days = 14, top = 20): Overview {
     byWeekday: weekdays,
     regions: [...zones.entries()].map(([zone, v]) => ({ zone, label: zoneLabel(zone), ...v })).sort((a, b) => b.games - a.games || b.devices - a.devices),
     avgDurationMin: dur.n === null ? null : Math.round((Number(dur.n) / 60_000) * 10) / 10,
+  }
+}
+
+/** Points of the top tier: a "Rey León" answer. */
+const TOP_POINTS = 100
+
+export interface GamesExport {
+  generatedAt: string
+  note: string
+  games: {
+    id: number
+    startedAt: string
+    finishedAt: string | null
+    region: string | null
+    players: string[]
+    rounds: { round: number; questionId: string | null; category: string | null; prompt: string; results: { nick: string; answer: string | null; points: number }[] }[]
+  }[]
+  /** Per question, over the games in this file: how often it came up and how its answers were scored. */
+  questions: {
+    questionId: string | null
+    prompt: string
+    category: string | null
+    timesAsked: number
+    gamesWithIt: number
+    answersGiven: number
+    noAnswer: number
+    reyLeon: number // answers worth 100 points
+    reyLeonShare: number | null // out of the answers given
+    avgPoints: number | null // mean points of the answers given
+    tiers: Record<string, number>
+    answers: { answer: string; points: number; times: number }[]
+  }[]
+}
+
+/** Everything kept about the newest games, ready to analyse: the raw rounds plus a summary per question. */
+export function exportGames(): GamesExport {
+  const rows = safe(
+    () =>
+      handle()
+        .prepare('SELECT g.id, g.started_at, g.finished_at, g.tz, s.data FROM game_summary s JOIN game_log g ON g.id = s.game_id ORDER BY g.id DESC LIMIT ?')
+        .all(KEEP_GAMES) as { id: number; started_at: number; finished_at: number | null; tz: string | null; data: string }[],
+    [],
+  )
+  const games: GamesExport['games'] = rows.map((r) => {
+    const d = JSON.parse(r.data) as GameData
+    return {
+      id: Number(r.id),
+      startedAt: new Date(Number(r.started_at)).toISOString(),
+      finishedAt: r.finished_at === null ? null : new Date(Number(r.finished_at)).toISOString(),
+      region: r.tz,
+      players: d.players,
+      rounds: d.rounds.map((rd, i) => ({ round: i + 1, questionId: rd.questionId ?? null, category: rd.category ?? null, prompt: rd.prompt, results: rd.results })),
+    }
+  })
+  type Q = GamesExport['questions'][number]
+  const byQuestion = new Map<string, Q & { gameIds: Set<number>; sum: number; byAnswer: Map<string, { answer: string; points: number; times: number }> }>()
+  for (const g of games) {
+    for (const rd of g.rounds) {
+      const key = rd.questionId ?? rd.prompt
+      let q = byQuestion.get(key)
+      if (!q) {
+        q = {
+          questionId: rd.questionId, prompt: rd.prompt, category: rd.category, timesAsked: 0, gamesWithIt: 0, answersGiven: 0, noAnswer: 0, reyLeon: 0, reyLeonShare: null, avgPoints: null,
+          tiers: {}, answers: [], gameIds: new Set(), sum: 0, byAnswer: new Map(),
+        }
+        byQuestion.set(key, q)
+      }
+      q.timesAsked++
+      q.gameIds.add(g.id)
+      for (const x of rd.results) {
+        if (x.answer === null) {
+          q.noAnswer++
+          continue
+        }
+        q.answersGiven++
+        q.sum += x.points
+        if (x.points >= TOP_POINTS) q.reyLeon++
+        q.tiers[String(x.points)] = (q.tiers[String(x.points)] ?? 0) + 1
+        const a = q.byAnswer.get(x.answer) ?? { answer: x.answer, points: x.points, times: 0 }
+        a.times++
+        q.byAnswer.set(x.answer, a)
+      }
+    }
+  }
+  const questions = [...byQuestion.values()]
+    .map(({ gameIds, sum, byAnswer, ...q }) => ({
+      ...q,
+      gamesWithIt: gameIds.size,
+      reyLeonShare: q.answersGiven ? Math.round((q.reyLeon / q.answersGiven) * 1000) / 1000 : null,
+      avgPoints: q.answersGiven ? Math.round((sum / q.answersGiven) * 10) / 10 : null,
+      answers: [...byAnswer.values()].sort((a, b) => b.times - a.times),
+    }))
+    .sort((a, b) => b.timesAsked - a.timesAsked || b.reyLeon - a.reyLeon)
+  return {
+    generatedAt: new Date().toISOString(),
+    note: `Últimas ${games.length} partidas (máximo ${KEEP_GAMES}), la más nueva primero. "questions" resume cada pregunta dentro de esas partidas; reyLeon = respuestas de ${TOP_POINTS} puntos.`,
+    games,
+    questions,
   }
 }

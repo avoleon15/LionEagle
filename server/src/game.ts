@@ -23,7 +23,7 @@ export interface GameHooks {
   /** Called once when the last question is over. */
   finished?: () => void
   /** Called after each round with what everybody answered (also for games that are abandoned later). */
-  roundDone?: (r: { prompt: string; results: { playerId: string; answer: string | null; points: number }[] }) => void
+  roundDone?: (r: { questionId: string; category: string; prompt: string; results: { playerId: string; answer: string | null; points: number }[] }) => void
 }
 
 export class Game {
@@ -113,7 +113,7 @@ export class Game {
     recordRound(this.question.id, results.filter((r) => r.answer !== null || present.has(r.playerId)).length, results.filter((r) => r.answer !== null).length)
     this.history.push({ prompt: this.question.prompt, category: this.question.category, results })
     try {
-      this.hooks.roundDone?.({ prompt: this.question.prompt, results })
+      this.hooks.roundDone?.({ questionId: this.question.id, category: this.question.category, prompt: this.question.prompt, results })
     } catch (e) {
       console.error('round summary:', e)
     }

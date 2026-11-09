@@ -10,6 +10,52 @@ import { MAX_SCORE, buildWorld, cloudSprite, drawStars, loadGamePicture, rng, ty
 // logical resolution (240 px tall, like a handheld console screen) and scaled up with nearest-neighbour.
 
 const H0 = 240
+
+/** On a phone the characters are drawn at 75% so a full room does not crowd the screen. */
+const PHONE_MAX_WIDTH = 600
+const PHONE_BEAN = 0.75
+const tinted = new WeakMap<HTMLCanvasElement, Map<string, HTMLCanvasElement>>()
+/** A solid-colour copy of the sprite (its silhouette): the character flashes in gold when it gets a Rey León. */
+function silhouette(src: HTMLCanvasElement, color: string): HTMLCanvasElement {
+  let byColor = tinted.get(src)
+  if (!byColor) tinted.set(src, (byColor = new Map()))
+  const hit = byColor.get(color)
+  if (hit) return hit
+  const out = document.createElement('canvas')
+  out.width = src.width
+  out.height = src.height
+  const og = out.getContext('2d')!
+  og.drawImage(src, 0, 0)
+  og.globalCompositeOperation = 'source-in'
+  og.fillStyle = color
+  og.fillRect(0, 0, out.width, out.height)
+  byColor.set(color, out)
+  return out
+}
+const GOLD_CONFETTI = ['#ffd23f', '#fff6c2', '#ffffff', '#ff9f1c', '#f4b942']
+interface Confetti { x: number; y: number; vx: number; vy: number; g: number; delay: number; t: number; color: string; sway: number; freq: number; phase: number }
+const smallSprites = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>()
+/** The sprite shrunk to `k` of its size: enlarged 4x without smoothing first, so the pixels stay clean when reduced. */
+function shrunk(src: HTMLCanvasElement, k: number): HTMLCanvasElement {
+  if (k === 1) return src
+  const hit = smallSprites.get(src)
+  if (hit) return hit
+  const big = document.createElement('canvas')
+  big.width = src.width * 4
+  big.height = src.height * 4
+  const bg = big.getContext('2d')!
+  bg.imageSmoothingEnabled = false
+  bg.drawImage(src, 0, 0, big.width, big.height)
+  const out = document.createElement('canvas')
+  out.width = Math.round(src.width * k)
+  out.height = Math.round(src.height * k)
+  const og = out.getContext('2d')!
+  og.imageSmoothingEnabled = true
+  og.imageSmoothingQuality = 'high'
+  og.drawImage(big, 0, 0, out.width, out.height)
+  smallSprites.set(src, out)
+  return out
+}
 // The colour of each score, the same as in the ranking table (--t10 ... --t100 in styles.css), and a lighter tone of it for the sparks.
 const TIER_COLOR: Record<number, string> = { 10: '#7fe0ff', 30: '#5b8cff', 60: '#7be35a', 80: '#c77dff', 100: '#ffd23f' }
 const TIER_LIGHT: Record<number, string> = { 10: '#d6f6ff', 30: '#b9ccff', 60: '#d2f7c4', 80: '#e8ccff', 100: '#fff6c2' }
@@ -56,13 +102,16 @@ export function Scene(props: Props) {
     let clouds: Cloud[] = []
     let particles: Particle[] = []
     let cam = -1
+    let beanK = 1 // size of the characters: 1, or 0.75 on a phone
+    let AW: number = AVATAR_W
+    let AH: number = AVATAR_H
     let seenClimb: Climb | null = null
     let popup: { text: string; color: string; at: number } | null = null
     let burstAt = 0
     let burstTier = 0
     let trail = ['#ffffff'] // colours of the sparks that come off the rocket while the character climbs
-    let rings: { x: number; y: number; at: number; color: string }[] = [] // shock waves of the big explosions
-    let flashAt = 0
+    let confetti: Confetti[] = [] // the golden confetti of a Rey León
+    const goldAt = new Map<string, number>() // when each character got its Rey León: it flashes in gold for a moment
     const burstedFor = new Map<string, number>() // for each other player, the climb whose end already had its burst
     let launchAt = 0
     // Each other player rises on their own, as soon as their score goes up (nobody waits for a result card but you).
@@ -94,6 +143,9 @@ export function Scene(props: Props) {
       cv.style.width = `${nw * scale}px`
       cv.style.height = `${nh * scale}px`
       sc = scale
+      beanK = cw < PHONE_MAX_WIDTH ? PHONE_BEAN : 1
+      AW = Math.round(AVATAR_W * beanK)
+      AH = Math.round(AVATAR_H * beanK)
       const dpr = window.devicePixelRatio || 1
       tv.width = Math.round(cw * dpr)
       tv.height = Math.round(ch * dpr)
@@ -133,19 +185,30 @@ export function Scene(props: Props) {
       raf = requestAnimationFrame(frame)
     }
 
-    /** The sparks at the end of a climb, in the colour of the score; a "Rey León" (100) is a big explosion with shock waves and a flash. */
-    const burst = (x: number, y: number, tier: number, nowMs: number) => {
+    /** The sprite, or its gold silhouette (blinking light and dark gold) for 0.8 s after a Rey León. */
+    const goldFlash = (sprite: HTMLCanvasElement, key: string, nowMs: number) => {
+      const at = goldAt.get(key)
+      if (at === undefined) return sprite
+      const u = (nowMs - at) / 1000
+      if (u < 0 || u > 0.8) return sprite
+      return silhouette(sprite, Math.floor(u * 14) % 2 ? '#fff6c2' : '#ffd23f')
+    }
+
+    /** The sparks at the end of a climb, in the colour of the score; a "Rey León" (100) is golden confetti and a gold flash of the character. */
+    const burst = (x: number, y: number, tier: number, nowMs: number, key: string) => {
       const color = TIER_COLOR[tier] ?? '#ffffff'
       const light = TIER_LIGHT[tier] ?? '#ffffff'
       if (tier >= 100) {
-        const colors = ['#ffd23f', '#fff6c2', '#ffffff', '#ff9f1c', '#ff5a1f']
-        for (let i = 0; i < 90; i++) {
-          const ang = Math.random() * Math.PI * 2
-          const sp = 30 + Math.random() * 95
-          particles.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 10, life: 0, max: 0.8 + Math.random() * 0.8, color: colors[i % colors.length], size: i % 5 === 0 ? 3 : i % 3 === 0 ? 2 : 1 })
+        goldAt.set(key, nowMs)
+        // golden confetti falls over the whole screen, and some more jumps out of the character
+        const fall = Math.round(W * 0.5)
+        for (let i = 0; i < fall; i++) {
+          confetti.push({ x: Math.random() * W, y: -Math.random() * H * 0.2 - 4, vx: 0, vy: H / (2.6 + Math.random() * 1.6), g: 0, delay: Math.random() * 0.8, t: 0, color: GOLD_CONFETTI[i % GOLD_CONFETTI.length], sway: 5 + Math.random() * 8, freq: 3 + Math.random() * 3, phase: Math.random() * 6 })
         }
-        rings.push({ x, y, at: nowMs, color: '#fff6c2' }, { x, y, at: nowMs + 90, color: '#ffd23f' })
-        flashAt = nowMs
+        for (let i = 0; i < 18; i++) {
+          confetti.push({ x, y, vx: (Math.random() - 0.5) * 80, vy: -(60 + Math.random() * 50), g: 130, delay: 0, t: 0, color: GOLD_CONFETTI[i % GOLD_CONFETTI.length], sway: 0, freq: 6, phase: Math.random() * 6 })
+        }
+        if (confetti.length > 500) confetti = confetti.slice(-500)
         return
       }
       const count = tier >= 80 ? 22 : tier >= 60 ? 16 : tier >= 30 ? 12 : 8
@@ -204,7 +267,7 @@ export function Scene(props: Props) {
       drawOthers(g, others, nowMs, now, camY)
 
       const x = Math.round(W / 2)
-      const top = Math.round(footY - AVATAR_H - camY)
+      const top = Math.round(footY - AH - camY)
       // shadow on the grass while close to the ground
       const height = w.footLow - footY
       if (height < 40) {
@@ -216,22 +279,22 @@ export function Scene(props: Props) {
         g.fillRect(x - Math.floor((sw - 4) / 2), sy + 1, sw - 4, 1)
       }
       if (rising && Math.floor(now * 24) % 2 === 0) {
-        particles.push({ x: x + (Math.random() - 0.5) * 10, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 8, vy: 18, life: 0, max: 0.6, color: trail[Math.floor(Math.random() * trail.length)], size: burstTier >= 100 ? 2 : 1 })
+        particles.push({ x: x + (Math.random() - 0.5) * 10, y: top + AH, vx: (Math.random() - 0.5) * 8, vy: 18, life: 0, max: 0.6, color: trail[Math.floor(Math.random() * trail.length)], size: burstTier >= 100 ? 2 : 1 })
       }
       if (lift > 0) {
         const f = Math.floor(now * 20) % 2
-        g.fillStyle = '#ffd23f'; g.fillRect(x - 2, top + AVATAR_H, 4, 3 + f)
-        g.fillStyle = '#ff7a1a'; g.fillRect(x - 1, top + AVATAR_H + 3 + f, 2, 3)
-        if (Math.floor(now * 30) % 2 === 0) particles.push({ x, y: top + AVATAR_H + 3, vx: (Math.random() - 0.5) * 14, vy: 20, life: 0, max: 0.45, color: '#ffe9a8', size: 1 })
+        g.fillStyle = '#ffd23f'; g.fillRect(x - 2, top + AH, 4, 3 + f)
+        g.fillStyle = '#ff7a1a'; g.fillRect(x - 1, top + AH + 3 + f, 2, 3)
+        if (Math.floor(now * 30) % 2 === 0) particles.push({ x, y: top + AH + 3, vx: (Math.random() - 0.5) * 14, vy: 20, life: 0, max: 0.45, color: '#ffe9a8', size: 1 })
       }
-      if (top > -AVATAR_H) {
-        g.drawImage(avatarSprite(avatar), x - AVATAR_W / 2, top)
+      if (top > -AH) {
+        g.drawImage(goldFlash(shrunk(avatarSprite(avatar), beanK), 'me', nowMs), x - Math.floor(AW / 2), top)
         tags.push({ name: nick.length > 14 ? nick.slice(0, 14) : nick, cx: x, top, mine: true })
       }
 
       if (burstAt && nowMs >= burstAt) {
         burstAt = 0
-        burst(x, top + AVATAR_H / 2, burstTier, nowMs)
+        burst(x, top + AH / 2, burstTier, nowMs, 'me')
       }
       if (popup) {
         const u = (nowMs - popup.at) / 1000
@@ -248,25 +311,18 @@ export function Scene(props: Props) {
         g.fillStyle = p.color
         g.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size)
       }
-      // the shock waves of an explosion: rings that grow and fade
-      for (const r of rings) {
-        const u = (nowMs - r.at) / 1000
-        if (u < 0 || u > 0.7) continue
-        const rad = u * 90
-        g.globalAlpha = Math.max(0, 1 - u / 0.7)
-        g.fillStyle = r.color
-        const steps = Math.max(24, Math.floor(rad * 6))
-        for (let i = 0; i < steps; i++) {
-          const a = (i / steps) * Math.PI * 2
-          g.fillRect(Math.round(r.x + Math.cos(a) * rad), Math.round(r.y + Math.sin(a) * rad), 2, 2)
-        }
+      // golden confetti: falls swaying and flips as it turns
+      for (const c of confetti) {
+        c.t += dt
+        if (c.t < c.delay) continue
+        c.vy += c.g * dt
+        c.y += c.vy * dt
+        c.x += c.vx * dt + Math.sin(c.phase + c.t * c.freq) * c.sway * dt
+        const flip = Math.sin(c.phase + c.t * 8) > 0
+        g.fillStyle = c.color
+        g.fillRect(Math.round(c.x), Math.round(c.y), flip ? 2 : 3, flip ? 3 : 2)
       }
-      rings = rings.filter((r) => nowMs - r.at < 700)
-      if (flashAt) {
-        const a = 0.5 - ((nowMs - flashAt) / 1000) * 2.2
-        if (a <= 0) flashAt = 0
-        else { g.globalAlpha = a; g.fillStyle = '#fff6c2'; g.fillRect(0, 0, W, H) }
-      }
+      confetti = confetti.filter((c) => c.y < H + 6)
       g.globalAlpha = 1
       particles = particles.filter((p) => p.life < p.max)
     }
@@ -333,15 +389,15 @@ export function Scene(props: Props) {
         const tier = tierOf(gain)
         const bob = score > 2 && !rising ? Math.round(Math.sin(now * 2 + i * 1.7) * 1.2) : 0
         const cx = Math.round(W * slots[i])
-        const top = Math.round(foot - AVATAR_H - camY + bob)
-        if (top > H || top < -AVATAR_H) return
-        g.drawImage(avatarSprite(o.avatar), cx - AVATAR_W / 2, top)
+        const top = Math.round(foot - AH - camY + bob)
+        if (top > H || top < -AH) return
+        g.drawImage(goldFlash(shrunk(avatarSprite(o.avatar), beanK), o.id, nowMs), cx - Math.floor(AW / 2), top)
         tags.push({ name: o.nick.length > 8 ? o.nick.slice(0, 8) : o.nick, cx, top })
-        if (rising && Math.floor(now * 24 + i) % 3 === 0) particles.push({ x: cx + (Math.random() - 0.5) * 8, y: top + AVATAR_H, vx: (Math.random() - 0.5) * 6, vy: 16, life: 0, max: 0.5, color: Math.random() < 0.5 ? TIER_COLOR[tier] : TIER_LIGHT[tier], size: tier >= 100 ? 2 : 1 })
+        if (rising && Math.floor(now * 24 + i) % 3 === 0) particles.push({ x: cx + (Math.random() - 0.5) * 8, y: top + AH, vx: (Math.random() - 0.5) * 6, vy: 16, life: 0, max: 0.5, color: Math.random() < 0.5 ? TIER_COLOR[tier] : TIER_LIGHT[tier], size: tier >= 100 ? 2 : 1 })
         // when their climb ends on screen: the sparks of their score (an explosion for a Rey León)
         if (gain > 0 && f.dur > 0 && nowMs >= f.start + f.dur && nowMs - (f.start + f.dur) < 1500 && burstedFor.get(o.id) !== f.start) {
           burstedFor.set(o.id, f.start)
-          burst(cx, top + AVATAR_H / 2, tier, nowMs)
+          burst(cx, top + AH / 2, tier, nowMs, o.id)
         }
       })
       for (const id of flights.keys()) if (!others.some((o) => o.id === id)) flights.delete(id)

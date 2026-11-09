@@ -1004,9 +1004,9 @@ function StatsPage({ token, open }: { token: string; open: (id: string) => void 
           <li><b>Sí:</b> cuántas veces salió cada pregunta y cuántos la respondieron bien.</li>
           <li><b>Sí:</b> de cada partida, la fecha, cuántos jugadores tuvo y si llegó al final.</li>
           <li><b>Sí:</b> una zona horaria por partida y por navegador (por ejemplo America/Guatemala), solo para saber de qué región aproximada juegan. No se guarda ninguna dirección IP.</li>
-          <li><b>Sí, solo de las últimas 50 partidas:</b> el apodo de cada jugador, su puntaje y las respuestas que dio en cada ronda. Las partidas más viejas se borran solas.</li>
+          <li><b>Sí, solo de las últimas 100 partidas:</b> el apodo de cada jugador, su puntaje y las respuestas que dio en cada ronda. Las partidas más viejas se borran solas.</li>
           <li><b>Sí:</b> un número al azar que cada navegador inventa y guarda; el servidor solo guarda una versión cifrada (hash) para contar jugadores distintos.</li>
-          <li><b>No:</b> direcciones IP, ni apodos ni puntos de partidas anteriores a las últimas 50. Las salas y las partidas en curso viven en memoria y se pierden al reiniciar.</li>
+          <li><b>No:</b> direcciones IP, ni apodos ni puntos de partidas anteriores a las últimas 100. Las salas y las partidas en curso viven en memoria y se pierden al reiniciar.</li>
         </ul>
       </details>
 
@@ -1023,20 +1023,44 @@ function StatsPage({ token, open }: { token: string; open: (id: string) => void 
   )
 }
 
-/** The last 50 games, newest first. Each one opens to show its players, and each player to show the answers per round. */
+/** The last 100 games, newest first. Each one opens to show its players, and each player to show the answers per round. */
 function GamesPage({ token }: { token: string }) {
   const [games, setGames] = useState<GameSummary[] | null>(null)
   const [error, setError] = useState('')
   useEffect(() => {
     call<{ games?: GameSummary[] }>(token, '/games').then((r) => setGames(r.games ?? [])).catch((e) => setError((e as Error).message))
   }, [token])
-  if (error) return <p className="error">{error}</p>
+  const [busy, setBusy] = useState('')
+  const save = async (path: string, name: string) => {
+    setBusy(path)
+    setError('')
+    try {
+      const data = await call<unknown>(token, path)
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${name}-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy('')
+    }
+  }
+  if (error && !games) return <p className="error">{error}</p>
   if (!games) return <p className="hint">Cargando…</p>
   const when = (t: number) => new Date(t).toLocaleString('es', { timeZone: 'America/Guatemala', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
   return (
     <>
       <h2 className="first">Últimas partidas</h2>
-      <p className="hint">Las últimas 50, la más nueva primero. Hora de Guatemala. Las más viejas se borran solas, junto con los apodos y las respuestas.</p>
+      <p className="hint">Las últimas 100, la más nueva primero. Hora de Guatemala. Las más viejas se borran solas, junto con los apodos y las respuestas.</p>
+      <div className="tools">
+        <button disabled={busy !== ''} onClick={() => void save('/games/export', 'altus-partidas')}>{busy === '/games/export' ? 'Preparando…' : 'Descargar partidas (JSON)'}</button>
+        <button disabled={busy !== ''} onClick={() => void save('/report', 'altus-reporte-preguntas')}>{busy === '/report' ? 'Preparando…' : 'Descargar reporte de preguntas (JSON)'}</button>
+      </div>
+      <p className="hint">Las partidas traen cada ronda con lo que respondió cada jugador y un resumen por pregunta (cuántas veces salió y cuántos Rey León). El reporte trae todas las preguntas con sus respuestas correctas y las incorrectas que escribieron los jugadores.</p>
+      {error && <p className="error">{error}</p>}
       {games.length === 0 && <p className="hint">Sin datos todavía.</p>}
       <div className="games">
         {games.map((g) => (

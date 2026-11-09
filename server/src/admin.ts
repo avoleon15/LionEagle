@@ -154,6 +154,8 @@ export function adminRouter(token: string): express.Router {
 
   r.get('/metrics', wrap(() => metrics.overview()))
   r.get('/games', wrap(() => ({ games: metrics.lastGames() })))
+  r.get('/games/export', wrap(() => metrics.exportGames()))
+  r.get('/report', wrap(() => stats.questionsReport()))
   r.get('/stats', wrap(() => ({ overview: stats.overview(), minForSuggestions: stats.MIN_FOR_SUGGESTIONS })))
   r.get('/stats/:id', wrap((req) => {
     const d = stats.detail(String(req.params.id))

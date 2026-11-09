@@ -289,7 +289,7 @@ export function start(socketId: string): Room {
       roundDone: (r) => {
         // Players who left keep their row: nicks are remembered from the moment the game started.
         const rounds = summary.rounds
-        rounds.push({ prompt: r.prompt, results: r.results.map((x) => ({ nick: nicks.get(x.playerId) ?? '?', answer: x.answer, points: x.points })) })
+        rounds.push({ questionId: r.questionId, category: r.category, prompt: r.prompt, results: r.results.map((x) => ({ nick: nicks.get(x.playerId) ?? '?', answer: x.answer, points: x.points })) })
         saveSummary(gameId, summary)
       },
     },
