@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { computeAwards } from '../../shared/awards'
 import { secondsLeft } from '../../shared/clock'
-import { MAX_ANSWER_LENGTH, tierLabel, type GameView, type PlayerView, type RoomState, type RoundRecord } from '../../shared/protocol'
+import { MAX_ANSWER_LENGTH, tierLabel, type ChatMessage, type GameView, type PlayerView, type RoomState, type RoundRecord } from '../../shared/protocol'
 import { Avatar, COLORS } from './Avatar'
 import { AwardIcon } from './PixelIcon'
 import { RESULT_MS, climbing, useClimb, useNow, type Climb } from './climb'
-import { Chat } from './Chat'
+import { Chat, SHOW_MS } from './Chat'
 import { MiniBoard } from './MiniBoard'
 import { RankTable } from './RankTable'
-import { ScoreChart } from './ScoreChart'
 import { Scene } from './Scene'
 import { socket } from './socket'
 import { splitPrompt } from './prompt'
@@ -261,6 +260,69 @@ function Table({ players, scores, me, gained }: { players: PlayerView[]; scores:
   )
 }
 
+/**
+ * The players standing on the podium: the best three, in rank order (ties keep the join order). `place` is the PLACE, so players
+ * with the same score share it and the lowest number (100, 100, 50 are places 1, 1, 3). When a tie runs past the third slot
+ * (100, 50, 50, 50) only the first three of the tied players fit; the full table below shows everybody.
+ */
+function podiumOf(players: PlayerView[], scores: Record<string, number>) {
+  const ranked = players.map((p, i) => ({ p, i, s: scores[p.id] ?? 0 })).sort((a, b) => b.s - a.s || a.i - b.i)
+  return ranked.slice(0, 3).map((r) => ({ ...r, place: ranked.findIndex((x) => x.s === r.s) + 1 }))
+}
+const podiumIds = (players: PlayerView[], scores: Record<string, number>) => podiumOf(players, scores).map((r) => r.p.id)
+
+/** What the players on the podium said lately, to show over their heads (one bubble each, the newest). */
+function usePodiumBubbles(ids: string[]): Record<string, ChatMessage> {
+  const [said, setSaid] = useState<Record<string, { msg: ChatMessage; at: number }>>({})
+  const idsRef = useRef(ids)
+  idsRef.current = ids
+  useEffect(() => {
+    const onMsg = (msg: ChatMessage) => {
+      if (!idsRef.current.includes(msg.from)) return
+      setSaid((s) => ({ ...s, [msg.from]: { msg, at: Date.now() } }))
+    }
+    socket.on('chat:msg', onMsg)
+    return () => void socket.off('chat:msg', onMsg)
+  }, [])
+  useEffect(() => {
+    if (Object.keys(said).length === 0) return
+    const id = setTimeout(() => setSaid((s) => Object.fromEntries(Object.entries(s).filter(([, v]) => Date.now() - v.at < SHOW_MS))), SHOW_MS)
+    return () => clearTimeout(id)
+  }, [said])
+  return Object.fromEntries(Object.entries(said).map(([id, v]) => [id, v.msg]))
+}
+
+/**
+ * The final podium. The step height follows the place, so tied players stand at the same height. First place goes in the middle,
+ * the next one on its left and the third on its right (one of the slots with a tie, e.g. 1-1-3: two tall steps and a low one).
+ */
+function Podium({ players, scores, me }: { players: PlayerView[]; scores: Record<string, number>; me: string }) {
+  const top = podiumOf(players, scores)
+  const steps = [1, 0, 2].filter((k) => k < top.length).map((k) => top[k])
+  const said = usePodiumBubbles(top.map((r) => r.p.id))
+  return (
+    <div className="podium" aria-label="Podio">
+      {steps.map((r, idx) => {
+        const msg = said[r.p.id]
+        const side = steps.length === 1 ? 'mid' : idx === 0 ? 'left' : idx === steps.length - 1 ? 'right' : 'mid'
+        return (
+          <div key={r.p.id} className={`step h${r.place} ${side}${r.p.id === me ? ' me' : ''}`}>
+            <div className="pedestal">
+              {msg && (
+                <span key={msg.id} className="saying" role="status">
+                  {msg.text}
+                </span>
+              )}
+              <Avatar a={r.p.avatar} size={r.place === 1 ? 56 : 44} />
+              <span className={`block place p${r.place}`}>{r.place}</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function Reveal({ room, game, me }: { room: RoomState; game: GameView; me: string }) {
   const reveal = game.reveal!
   const gained: Record<string, number> = {}
@@ -281,7 +343,7 @@ function Reveal({ room, game, me }: { room: RoomState; game: GameView; me: strin
   )
 }
 
-/** The three mentions that stand out most in this game (see shared/awards.ts), under the list. Nothing shows when none stands out. */
+/** The three mentions that stand out most in this game (see shared/awards.ts), under the podium. Nothing shows when none stands out. */
 function Mentions({ players, history, me }: { players: PlayerView[]; history: RoundRecord[]; me: string }) {
   const awards = computeAwards(players.map((p) => p.id), history)
   if (awards.length === 0) return null
@@ -331,9 +393,10 @@ function Final({ room, game, me, onLeave }: Props) {
       <div className="final-scroll">
         <p className="kicker">Resultado final</p>
         <h2 className="prompt">{title}</h2>
-        <ScoreChart players={room.players} history={game.history ?? []} me={me} />
-        <Table players={room.players} scores={game.scores} me={me} />
+        <Podium players={room.players} scores={game.scores} me={me} />
         <Mentions players={room.players} history={game.history ?? []} me={me} />
+        <p className="kicker">Tabla completa</p>
+        <Table players={room.players} scores={game.scores} me={me} />
         {details && (
           <div className="details" ref={detailsRef}>
             {(game.history ?? []).map((round, i) => (
@@ -449,7 +512,7 @@ export function Game(props: Props) {
           </button>
         </div>
       </div>
-      <Chat players={room.players} me={me} />
+      <Chat players={room.players} me={me} podium={showFinal ? podiumIds(room.players, game.scores) : undefined} />
       <div className="stage">
         {fresh && <ResultCard points={fresh.points} />}
         {game.stage === 'answering' && !fresh && <Question game={game} me={me} connected={connected} now={now} climb={climb} onResult={setResult} />}
