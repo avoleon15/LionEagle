@@ -509,7 +509,15 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .bubbles li { display: flex; align-items: flex-start; gap: 6px; padding: 6px 10px; background: rgba(10, 15, 44, 0.92); border: 2px solid var(--rim); box-shadow: 3px 3px 0 var(--ink); color: var(--text); font-size: 0.88rem; line-height: 1.25; text-align: left; animation: bubblein 0.18s ease-out both; }
 .bubbles li.own { border-color: var(--gold); }
 .bubbles li > span { min-width: 0; overflow-wrap: anywhere; }
-.chatmenu { display: flex; gap: 6px; padding: 8px; width: min(300px, calc(100vw - 20px)); background: #0a0f2c; border: 3px solid var(--rim); box-shadow: 4px 4px 0 var(--ink); }
+.chatpanel { display: flex; flex-direction: column; gap: 6px; padding: 8px; width: min(300px, calc(100vw - 20px)); background: #0a0f2c; border: 3px solid var(--rim); box-shadow: 4px 4px 0 var(--ink); }
+.chatmenu { display: flex; gap: 6px; }
+/* the messages of the room: newest at the bottom, scroll up for older ones */
+.chatlog { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; max-height: min(38dvh, 260px); overflow-y: auto; overscroll-behavior: contain; }
+.chatlog li { display: flex; align-items: flex-start; gap: 6px; padding: 5px 8px; background: rgba(36, 52, 120, 0.55); color: var(--text); font-size: 0.85rem; line-height: 1.25; text-align: left; }
+.chatlog li.own { background: rgba(255, 210, 63, 0.16); }
+.chatlog li.empty { background: none; color: #a9b8f0; }
+.chatlog .said { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.chatlog .said b { font-size: 0.72rem; color: #a9b8f0; font-weight: 700; }
 .chatmenu input { flex: 1; min-width: 0; }
 .chatmenu button { flex: none; font-size: 0.85rem; padding: 7px 10px; }
 .chaterror { margin: 0; padding: 3px 8px; background: rgba(10, 15, 44, 0.9); color: #ff8a8a; font-size: 0.8rem; }

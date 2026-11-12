@@ -187,7 +187,7 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
           </button>
         </div>
       </section>
-      <Chat players={room.players} me={me} />
+      <Chat players={room.players} me={me} code={room.code} />
       {suggesting && <SuggestBox nick={nick} categories={room.categories.map((c) => c.name)} onClose={() => setSuggesting(false)} />}
     </main>
   )

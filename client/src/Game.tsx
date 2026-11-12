@@ -512,7 +512,7 @@ export function Game(props: Props) {
           </button>
         </div>
       </div>
-      <Chat players={room.players} me={me} podium={showFinal ? podiumIds(room.players, game.scores) : undefined} />
+      <Chat players={room.players} me={me} code={room.code} podium={showFinal ? podiumIds(room.players, game.scores) : undefined} />
       <div className="stage">
         {fresh && <ResultCard points={fresh.points} />}
         {game.stage === 'answering' && !fresh && <Question game={game} me={me} connected={connected} now={now} climb={climb} onResult={setResult} />}
