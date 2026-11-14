@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "altus": {
+      "command": "node",
+      "args": ["mcp/altus-mcp.mjs"],
+      "env": {
+        "ALTUS_URL": "${ALTUS_URL:-http://localhost:3001}",
+        "ALTUS_ADMIN_TOKEN": "${ALTUS_ADMIN_TOKEN:-}"
+      }
+    }
+  }
+}
