@@ -12,6 +12,7 @@ import { join as joinPath } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { selectQuestions } from './selection'
 import * as stats from './stats'
+import * as calibration from './calibration'
 import { Game, GameError, MIN_RETRY_MS } from './game'
 import { RateLimiter } from './ratelimit'
 import { secondsLeft } from '../../shared/clock'
@@ -646,6 +647,35 @@ for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content 
   const q1 = ex.questions.find((q) => q.questionId === 'q1')
   check(ex.games.length === 100 && ex.games[0].id === gx && ex.games[0].rounds[0].questionId === 'q1', 'export: the raw games come with the question of every round')
   check(!!q1 && q1.timesAsked === 1 && q1.reyLeon === 1 && q1.noAnswer === 1 && q1.reyLeonShare === 1 && q1.answers[0].answer === 'Uno', 'export: per-question summary counts Rey León and unanswered')
+}
+
+// --- seasonal packs and calibration ---
+{
+  const cat = db.categories()[0].name
+  const before = db.playable(null).length
+  const inCat = db.playable([cat]).length
+  db.addPack(cat)
+  check(!db.categories().some((c) => c.name === cat) && db.playable(null).length === before - inCat, 'packs: a pack that is off is left out of the categories and of the games')
+  db.setPackActive(cat, true)
+  check(db.categories().find((c) => c.name === cat)?.seasonal === true && db.playable(null).length === before, 'packs: turned on it comes back, marked as seasonal')
+  db.removePack(cat)
+  check(db.categories().find((c) => c.name === cat)?.seasonal === undefined && db.listPacks().length === 0, 'packs: removed, it is a normal category again')
+  let threw = false
+  try { db.addPack('   ') } catch { threw = true }
+  check(threw, 'packs: an empty name is refused')
+
+  const q = db.playable(null)[0]
+  const tens = q.answers.filter((a) => a.points === 10)
+  const victim = tens.length > 1 ? tens[0] : q.answers.find((a) => a.points !== 10 && a.points !== 100) ?? q.answers[0]
+  const changed = calibration.applyLevel(q.id, victim.label, 30)
+  check(changed.answers.find((a) => a.label === victim.label)?.points === 30, 'calibration: one answer changes level')
+  const hundreds = changed.answers.filter((a) => a.points === 100)
+  if (hundreds.length === 1) {
+    let refused = false
+    try { calibration.applyLevel(q.id, hundreds[0].label, 80) } catch { refused = true }
+    check(refused && db.getQuestion(q.id)!.answers.some((a) => a.points === 100), 'calibration: a change that leaves no 100-point answer is refused')
+  }
+  check(Array.isArray(calibration.calibration().issues), 'calibration: the panel builds')
 }
 
 // --- mentions at the end of the game ---

@@ -1106,9 +1106,141 @@ function GamesPage({ token }: { token: string }) {
   )
 }
 
+// ---- seasonal packs ----
+
+interface Pack { category: string; active: boolean; published: number; total: number }
+
+/** Seasonal packs: a category that only comes up in the game while it is turned on here (Christmas, the World Cup...). */
+function PacksPage({ token }: { token: string }) {
+  const [packs, setPacks] = useState<Pack[] | null>(null)
+  const [cats, setCats] = useState<string[]>([])
+  const [name, setName] = useState('')
+  const [error, setError] = useState('')
+  const run = async (f: () => Promise<{ packs: Pack[] }>) => {
+    setError('')
+    try { setPacks((await f()).packs) } catch (e) { setError((e as Error).message) }
+  }
+  useEffect(() => {
+    call<{ packs: Pack[]; categories: string[] }>(token, '/packs').then((r) => { setPacks(r.packs); setCats(r.categories) }).catch((e) => setError((e as Error).message))
+  }, [token])
+  if (!packs) return error ? <p className="error">{error}</p> : <p className="hint">Cargando…</p>
+  const free = cats.filter((c) => !packs.some((p) => p.category === c))
+  return (
+    <>
+      <h2 className="first">Packs de temporada</h2>
+      <p className="hint">
+        Un pack es una categoría que solo sale en el juego mientras está <b>activa</b>. Cuando la activas aparece arriba de todo en el lobby,
+        como «De temporada», y el host puede dejarla marcada o quitarla. Apagada no sale en ninguna partida. Sus preguntas se crean e importan
+        como cualquier otra, con esa categoría.
+      </p>
+      {error && <p className="error">{error}</p>}
+      <ul className="qlist">
+        {packs.map((p) => (
+          <li key={p.category} className="sug">
+            <div className="q-prompt">
+              <b>{p.category}</b>
+              <small>{p.published} publicadas{p.total > p.published ? ` · ${p.total - p.published} sin publicar` : ''}</small>
+            </div>
+            <span className={`badge ${p.active ? 'published' : 'archived'}`}>{p.active ? 'Activo' : 'Apagado'}</span>
+            <button className={p.active ? '' : 'primary'} onClick={() => void run(() => call(token, '/packs/active', 'POST', { category: p.category, active: !p.active }))}>
+              {p.active ? 'Apagar' : 'Activar'}
+            </button>
+            <button onClick={() => { if (confirm(`¿Quitar «${p.category}» de los packs? Sus preguntas saldrán todo el año como una categoría normal.`)) void run(() => call(token, '/packs/remove', 'POST', { category: p.category })) }}>
+              Quitar
+            </button>
+          </li>
+        ))}
+        {packs.length === 0 && <li className="empty">Todavía no hay packs.</li>}
+      </ul>
+      <h2>Nuevo pack</h2>
+      <p className="hint">Escribe el nombre de la categoría (por ejemplo «Navidad»). Puede ser una que ya existe o una nueva para las preguntas que vas a importar.</p>
+      <form className="toolbar" onSubmit={(e) => { e.preventDefault(); if (name.trim()) void run(() => call(token, '/packs', 'POST', { category: name.trim() })).then(() => setName('')) }}>
+        <input list="pack-cats" value={name} placeholder="Navidad" onChange={(e) => setName(e.target.value)} maxLength={40} />
+        <datalist id="pack-cats">{free.map((c) => <option key={c} value={c} />)}</datalist>
+        <button className="primary" disabled={!name.trim()}>Crear pack</button>
+      </form>
+    </>
+  )
+}
+
+// ---- calibration ----
+
+interface Issue {
+  kind: 'muchos-rey-leon' | 'nivel-sugerido' | 'nadie-responde' | 'muy-facil'
+  questionId: string
+  prompt: string
+  category: string
+  label?: string
+  points?: number
+  suggested?: number
+  detail: string
+}
+
+const ISSUE_TITLES: Record<Issue['kind'], string> = {
+  'muchos-rey-leon': 'Rey León que sale demasiado',
+  'nivel-sugerido': 'Nivel que sugieren las respuestas escritas',
+  'nadie-responde': 'Casi nadie la responde',
+  'muy-facil': 'Demasiado fácil',
+}
+
+/** What the data says about the levels: answers to change with one click, and questions to look at. */
+function CalibrationPage({ token, open }: { token: string; open: (id: string) => void }) {
+  const [data, setData] = useState<{ issues: Issue[]; games: number } | null>(null)
+  const [error, setError] = useState('')
+  const [done, setDone] = useState<Record<string, string>>({})
+  const load = useCallback(() => {
+    call<{ issues: Issue[]; games: number }>(token, '/calibration').then(setData).catch((e) => setError((e as Error).message))
+  }, [token])
+  useEffect(load, [load])
+  if (!data) return error ? <p className="error">{error}</p> : <p className="hint">Cargando…</p>
+  const key = (i: Issue) => `${i.kind}|${i.questionId}|${i.label ?? ''}`
+  const apply = async (i: Issue, points: number) => {
+    try {
+      await call(token, '/calibration/apply', 'POST', { questionId: i.questionId, label: i.label, points })
+      setDone((d) => ({ ...d, [key(i)]: `Cambiada a ${points}` }))
+    } catch (e) {
+      setDone((d) => ({ ...d, [key(i)]: (e as Error).message }))
+    }
+  }
+  const kinds: Issue['kind'][] = ['muchos-rey-leon', 'nivel-sugerido', 'nadie-responde', 'muy-facil']
+  return (
+    <>
+      <h2 className="first">Calibración</h2>
+      <p className="hint">
+        Sale de las últimas {data.games} partidas y de todo lo que los jugadores han escrito. Cambiar un nivel guarda antes una copia de las
+        preguntas, y no se aplica si la pregunta se quedaría sin respuestas de 10 o de 100.
+      </p>
+      {kinds.map((k) => {
+        const list = data.issues.filter((i) => i.kind === k)
+        return (
+          <section key={k}>
+            <h2>{ISSUE_TITLES[k]} <small>({list.length})</small></h2>
+            <ul className="qlist">
+              {list.map((i) => (
+                <li key={key(i)} className="sug">
+                  <div className="q-prompt">
+                    <b>{i.label ? `«${i.label}» · ${i.points} → ${i.suggested}` : i.prompt}</b>
+                    <small>{i.label ? `${i.prompt} · ` : ''}{i.category} · {i.detail}</small>
+                    {done[key(i)] && <small><b>{done[key(i)]}</b></small>}
+                  </div>
+                  {i.label && i.suggested !== undefined && !done[key(i)] && (
+                    <button className="primary" onClick={() => void apply(i, i.suggested!)}>Cambiar a {i.suggested}</button>
+                  )}
+                  <button onClick={() => open(i.questionId)}>Ver pregunta</button>
+                </li>
+              ))}
+              {list.length === 0 && <li className="empty">Nada por aquí.</li>}
+            </ul>
+          </section>
+        )
+      })}
+    </>
+  )
+}
+
 // ---- shell ----
 
-type Tab = 'preguntas' | 'estadisticas' | 'partidas' | 'sugerencias' | 'importar'
+type Tab = 'preguntas' | 'estadisticas' | 'calibracion' | 'partidas' | 'temporada' | 'sugerencias' | 'importar'
 /** What is on screen: a tab, and inside Preguntas a question's page or its editor. */
 interface View { tab: Tab; qid: string | null; edit: Draft | null }
 const START: View = { tab: 'preguntas', qid: null, edit: null }
@@ -1215,7 +1347,9 @@ export function Admin() {
         <nav>
           {tabButton('preguntas', 'Preguntas')}
           {tabButton('estadisticas', 'Estadísticas')}
+          {tabButton('calibracion', 'Calibración')}
           {tabButton('partidas', 'Partidas')}
+          {tabButton('temporada', 'Temporada')}
           {tabButton('sugerencias', 'Sugerencias', counts && counts.newSuggestions > 0 ? <span className="count">{counts.newSuggestions}</span> : null)}
           {tabButton('importar', 'Importar / exportar')}
         </nav>
@@ -1227,7 +1361,9 @@ export function Admin() {
             ? <QuestionPage key={view.qid} token={token} id={view.qid} edit={() => void openEdit(view.qid!)} back={back} />
             : <Questions token={token} counts={counts} refresh={refresh} f={filters} setF={setFilters} open={openQuestion} create={() => go({ tab: 'preguntas', edit: blank(filters.cats.length === 1 ? filters.cats[0] : '') })} />)}
         {view.tab === 'estadisticas' && <StatsPage token={token} open={openQuestion} />}
+        {view.tab === 'calibracion' && <CalibrationPage token={token} open={openQuestion} />}
         {view.tab === 'partidas' && <GamesPage token={token} />}
+        {view.tab === 'temporada' && <PacksPage token={token} />}
         {view.tab === 'sugerencias' && <Suggestions token={token} refresh={refresh} openDraft={(q) => go({ tab: 'preguntas', edit: fromQuestion(q) })} />}
         {view.tab === 'importar' && <ImportExport token={token} refresh={refresh} />}
       </div>

@@ -14,6 +14,7 @@ const GROUPS: { name: string; members: string[] }[] = [
 
 export interface CategoryGroup {
   name: string
+  seasonal?: boolean // the seasonal packs that are on: shown first and highlighted
   categories: CategoryInfo[]
   count: number // questions in the whole group
 }
@@ -21,8 +22,12 @@ export interface CategoryGroup {
 export function groupCategories(all: CategoryInfo[]): CategoryGroup[] {
   const placed = new Set<string>()
   const out: CategoryGroup[] = []
+  // seasonal packs (turned on by the owner in the admin) go first, in a group of their own
+  const seasonal = all.filter((c) => c.seasonal)
+  seasonal.forEach((c) => placed.add(c.name))
+  if (seasonal.length > 0) out.push({ name: 'De temporada', seasonal: true, categories: seasonal, count: seasonal.reduce((n, c) => n + c.count, 0) })
   for (const g of GROUPS) {
-    const categories = all.filter((c) => g.members.includes(c.name))
+    const categories = all.filter((c) => g.members.includes(c.name) && !placed.has(c.name))
     categories.forEach((c) => placed.add(c.name))
     if (categories.length > 0) out.push({ name: g.name, categories, count: categories.reduce((n, c) => n + c.count, 0) })
   }

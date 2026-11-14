@@ -101,6 +101,12 @@ CREATE TABLE IF NOT EXISTS game_summary (
   game_id INTEGER PRIMARY KEY,
   data TEXT NOT NULL
 );
+-- Seasonal packs: a category that only shows up in the game while the owner has it turned on (Christmas, the World Cup...).
+CREATE TABLE IF NOT EXISTS packs (
+  category TEXT PRIMARY KEY,
+  active INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS question_stats (
   question_id TEXT PRIMARY KEY,
   asked INTEGER NOT NULL DEFAULT 0,
@@ -276,12 +282,60 @@ export function setStatus(id: string, status: Status): SaveResult {
   return saveQuestion({ ...q, status })
 }
 
-/** Categories with at least one published question, with their counts. */
+/** Seasonal packs that are turned off: their categories are left out of the game. */
+function hiddenPacks(): Set<string> {
+  return new Set(db.prepare('SELECT category FROM packs WHERE active = 0').all().map((r) => r.category as string))
+}
+
+/** Categories with at least one published question, with their counts. Seasonal packs only while turned on (marked `seasonal`). */
 export function categories(): CategoryInfo[] {
+  const hidden = hiddenPacks()
+  const seasonal = new Set(db.prepare('SELECT category FROM packs WHERE active = 1').all().map((r) => r.category as string))
   return db
     .prepare("SELECT category AS name, COUNT(*) AS count FROM questions WHERE status = 'published' GROUP BY category ORDER BY category")
     .all()
-    .map((r) => ({ name: r.name as string, count: Number(r.count) }))
+    .filter((r) => !hidden.has(r.name as string))
+    .map((r) => ({ name: r.name as string, count: Number(r.count), ...(seasonal.has(r.name as string) ? { seasonal: true } : {}) }))
+}
+
+export interface PackInfo {
+  category: string
+  active: boolean
+  published: number // questions of the pack that can come up in a game
+  total: number // all its questions, drafts and archived included
+}
+
+/** The seasonal packs, with how many questions each has. */
+export function listPacks(): PackInfo[] {
+  return db
+    .prepare(
+      `SELECT p.category AS category, p.active AS active,
+              (SELECT COUNT(*) FROM questions q WHERE q.category = p.category AND q.status = 'published') AS published,
+              (SELECT COUNT(*) FROM questions q WHERE q.category = p.category) AS total
+       FROM packs p ORDER BY p.category`,
+    )
+    .all()
+    .map((r) => ({ category: r.category as string, active: Number(r.active) === 1, published: Number(r.published), total: Number(r.total) }))
+}
+
+/** Makes a category a seasonal pack (turned off until the owner turns it on). */
+export function addPack(category: string): PackInfo[] {
+  const name = String(category ?? '').replace(/\s+/g, ' ').trim()
+  if (!name || name.length > SUGGESTION_LIMITS.category) throw new InputError('Escribe el nombre de la categoría del pack (máximo 40 letras).')
+  db.prepare('INSERT INTO packs (category, active, created_at) VALUES (?, 0, ?) ON CONFLICT(category) DO NOTHING').run(name, Date.now())
+  return listPacks()
+}
+
+export function setPackActive(category: string, active: boolean): PackInfo[] {
+  const res = db.prepare('UPDATE packs SET active = ? WHERE category = ?').run(active ? 1 : 0, category)
+  if (Number(res.changes) === 0) throw new InputError('Ese pack no existe.')
+  return listPacks()
+}
+
+/** The category stops being a pack: its questions come up all year like any other. */
+export function removePack(category: string): PackInfo[] {
+  db.prepare('DELETE FROM packs WHERE category = ?').run(category)
+  return listPacks()
 }
 
 /** Every category that has any question, whatever its status (for the admin's filters and editor). */
@@ -291,7 +345,9 @@ export function allCategories(): string[] {
 
 /** Published questions in the given categories (all published when `names` is null). */
 export function playable(names: string[] | null): Question[] {
+  const hidden = hiddenPacks()
   return listQuestions({ status: 'published' })
+    .filter((q) => !hidden.has(q.category))
     .filter((q) => !names || names.includes(q.category))
     // Checked again because the matching rules may have changed since the question was published.
     .filter((q) => validateQuestion(q).length === 0)

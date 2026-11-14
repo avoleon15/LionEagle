@@ -554,3 +554,8 @@ main.screen { position: relative; z-index: 1; min-height: 100dvh; display: flex;
 .app .version { position: absolute; right: 12px; bottom: 10px; margin: 0; text-align: right; z-index: 1; pointer-events: none; font-family: Inter, system-ui, sans-serif; font-weight: 700; font-size: 0.9rem; letter-spacing: 0.04em; color: #fff; text-shadow: 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 2px 0 var(--ink), 0 -2px 0 var(--ink); }
 .face { position: relative; display: block; }
 
+
+/* the seasonal packs the owner has turned on: a highlighted group at the top of the categories */
+.app .group.seasonal .gbtn { border-color: #ff5a6a; color: #ffd9de; background: #3a1424; }
+.app .group.seasonal .gbtn.on { background: #ff5a6a; color: var(--ink); }
+.app .group.seasonal .gbtn.some { background: #5a2434; border-color: #ff5a6a; }

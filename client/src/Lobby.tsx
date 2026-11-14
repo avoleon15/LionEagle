@@ -127,11 +127,11 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
             const several = g.categories.length > 1
             const isOpen = expanded.has(g.name)
             return (
-              <div key={g.name} className="group">
+              <div key={g.name} className={'group' + (g.seasonal ? ' seasonal' : '')}>
                 <div className="grow">
                   <button className={'gbtn' + state} disabled={!isHost} aria-pressed={on === names.length} onClick={() => toggleGroup(names)}>
                     <span className="box-mark" aria-hidden>{on === names.length ? '■' : on > 0 ? '◧' : '□'}</span>
-                    {g.name}
+                    {g.seasonal ? `✦ ${several ? g.name : `De temporada: ${g.categories[0].name}`}` : g.name}
                   </button>
                   {several && (
                     <button className="expand" aria-expanded={isOpen} aria-label={`Subcategorías de ${g.name}`} onClick={() => toggleOpen(g.name)}>

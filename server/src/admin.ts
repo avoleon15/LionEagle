@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import * as backup from './backup'
+import * as calibration from './calibration'
 import * as db from './db'
 import * as metrics from './metrics'
 import * as stats from './stats'
@@ -151,6 +152,16 @@ export function adminRouter(token: string): express.Router {
   r.post('/backups/:name/restore', wrap((req) => backup.restore(String(req.params.name))))
   r.post('/publish-ready', wrap(() => db.publishReady()))
   r.post('/archive-samples', wrap(() => ({ archived: db.archiveSamples() })))
+
+  // Seasonal packs (a category that only comes up while it is turned on)
+  r.get('/packs', wrap(() => ({ packs: db.listPacks(), categories: db.allCategories() })))
+  r.post('/packs', wrap((req) => ({ packs: db.addPack(String(req.body?.category ?? '')) })))
+  r.post('/packs/active', wrap((req) => ({ packs: db.setPackActive(String(req.body?.category ?? ''), req.body?.active === true) })))
+  r.post('/packs/remove', wrap((req) => ({ packs: db.removePack(String(req.body?.category ?? '')) })))
+
+  // Calibration: answers whose level the data says is off, and changing one with a click
+  r.get('/calibration', wrap(() => calibration.calibration()))
+  r.post('/calibration/apply', wrap((req) => ({ question: calibration.applyLevel(String(req.body?.questionId ?? ''), String(req.body?.label ?? ''), Number(req.body?.points)) })))
 
   r.get('/metrics', wrap(() => metrics.overview()))
   r.get('/games', wrap(() => ({ games: metrics.lastGames() })))
