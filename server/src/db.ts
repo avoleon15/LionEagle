@@ -107,6 +107,14 @@ CREATE TABLE IF NOT EXISTS packs (
   active INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL
 );
+-- This week's count for the selection of questions (stats.selectionCounts): it starts again every Sunday, Guatemala time.
+-- question_stats keeps the count of all time.
+CREATE TABLE IF NOT EXISTS question_week (
+  question_id TEXT PRIMARY KEY,
+  week TEXT NOT NULL,
+  asked INTEGER NOT NULL DEFAULT 0,
+  baseline INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS question_stats (
   question_id TEXT PRIMARY KEY,
   asked INTEGER NOT NULL DEFAULT 0,
@@ -273,6 +281,7 @@ export function deleteQuestion(id: string): boolean {
   // The id can be reused by a new question with the same text: it must not inherit the old one's play data.
   db.prepare('DELETE FROM answer_log WHERE question_id = ?').run(key)
   db.prepare('DELETE FROM question_stats WHERE question_id = ?').run(key)
+  db.prepare('DELETE FROM question_week WHERE question_id = ?').run(key)
   return deleted
 }
 

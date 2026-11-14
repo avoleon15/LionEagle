@@ -649,6 +649,41 @@ for (const [id, n] of Object.entries(known)) check(byId.get(id) === n, `content 
   check(!!q1 && q1.timesAsked === 1 && q1.reyLeon === 1 && q1.noAnswer === 1 && q1.reyLeonShare === 1 && q1.answers[0].answer === 'Uno', 'export: per-question summary counts Rey León and unanswered')
 }
 
+// --- new questions start at the average, so they do not take over every game ---
+{
+  const ids = db.playable(null).map((q) => q.id)
+  stats.resetStats()
+  for (const id of ids.slice(1)) stats.recordRound(id, 40, 30)
+  const counts = stats.selectionCounts(ids)
+  check(counts.get(ids[0]) === 40, 'selection: a question never asked starts at the average of the others')
+  stats.recordRound(ids[0], 3, 2)
+  check(stats.selectionCounts(ids).get(ids[0]) === 43 && stats.detail(ids[0])!.asked === 3, 'selection: from then on it counts normally, and the statistics keep the real number')
+  // weeks run from Sunday to Sunday, Guatemala time; every week the selection count starts again, the total stays
+  check(stats.weekOf(Date.UTC(2026, 10, 15, 5, 59)) === '2026-11-08' && stats.weekOf(Date.UTC(2026, 10, 15, 6, 0)) === '2026-11-15', 'selection: the week changes on Sunday at midnight, Guatemala time')
+  const nextWeek = Date.now() + 7 * 86_400_000
+  const fresh = stats.selectionCounts(ids, nextWeek)
+  check(ids.every((id) => fresh.get(id) === 0) && stats.detail(ids[0])!.asked === 3, 'selection: a new week starts everybody at zero, the all-time count is kept')
+  stats.recordRound(ids[1], 5, 4, nextWeek)
+  check(stats.selectionCounts(ids, nextWeek).get(ids[1]) === 5, 'selection: games of the new week count from zero')
+  // over many games the new one comes up about as often as an average question: not in almost every game, and not left out
+  let state = 7
+  const fair = () => { state = (state + 0x6d2b79f5) >>> 0; let t = state; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
+  const pool = db.playable(null)
+  const local = new Map(stats.selectionCounts(ids))
+  const seenTimes = new Map<string, number>()
+  const games = Math.max(600, pool.length * 25)
+  for (let g = 0; g < games; g++) {
+    for (const q of selectQuestions(pool, 3, new Set(), local, fair)) {
+      local.set(q.id, (local.get(q.id) ?? 0) + 1)
+      seenTimes.set(q.id, (seenTimes.get(q.id) ?? 0) + 1)
+    }
+  }
+  const avgSeen = (games * 3) / pool.length
+  const newSeen = seenTimes.get(ids[0]) ?? 0
+  check(newSeen > avgSeen * 0.7 && newSeen < avgSeen * 1.3, `selection: a new question comes up about as often as the others (${newSeen}, average ${avgSeen.toFixed(0)})`)
+  stats.resetStats()
+}
+
 // --- seasonal packs and calibration ---
 {
   const cat = db.categories()[0].name

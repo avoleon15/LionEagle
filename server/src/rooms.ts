@@ -16,6 +16,7 @@ import {
 } from '../../shared/protocol'
 import { HOST_HANDOVER_MS } from './config'
 import * as db from './db'
+import * as stats from './stats'
 import { cleanZone, deviceKey, gameFinished, gameStarted, saveSummary, type RoundSummary } from './metrics'
 import { Game } from './game'
 import { selectQuestions } from './selection'
@@ -274,10 +275,8 @@ export function start(socketId: string): Room {
   if (pool.length < QUESTIONS_PER_GAME) {
     throw new RoomError(`Con esas categorías solo hay ${pool.length} preguntas y se necesitan ${QUESTIONS_PER_GAME}. Elige más categorías.`)
   }
-  // Times each question was asked in all games so far: the selection favours the ones lagging behind.
-  const asked = new Map(
-    db.handle().prepare('SELECT question_id, asked FROM question_stats').all().map((r) => [r.question_id as string, Number(r.asked)] as const),
-  )
+  // Times each question was asked this week (it starts again every Sunday): the selection favours the ones lagging behind.
+  const asked = stats.selectionCounts(pool.map((q) => q.id))
   const picked = selectQuestions(pool, QUESTIONS_PER_GAME, room.played, asked)
   // Create the game first: if it cannot start, the room is still a normal lobby.
   const game = new Game(

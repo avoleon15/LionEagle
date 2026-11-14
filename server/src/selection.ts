@@ -2,8 +2,11 @@ import type { Question } from './matching'
 
 /** How hard a question that was asked more than average is pushed back (higher = evens out faster). */
 const FAIRNESS = 4
-/** A brand new question is at most this many times likelier than an average one, so it cannot hog every game. */
-const MAX_BOOST = 50
+/**
+ * A question behind the others is at most this many times likelier than an average one. New questions no longer start behind
+ * (stats.selectionCounts gives them the average), so this only evens out small differences, gently.
+ */
+const MAX_BOOST = 4
 
 /**
  * Picks `n` questions so that, over many games, every question of the pool is shown equally often.

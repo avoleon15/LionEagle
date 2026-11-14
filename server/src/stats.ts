@@ -33,7 +33,7 @@ export function logAnswer(questionId: string, text: string): void {
 }
 
 /** Called when a round ends: `asked` players saw the question, `answered` of them locked in a valid answer. */
-export function recordRound(questionId: string, asked: number, answered: number): void {
+export function recordRound(questionId: string, asked: number, answered: number, now = Date.now()): void {
   safe(() => {
     handle()
       .prepare(
@@ -41,7 +41,50 @@ export function recordRound(questionId: string, asked: number, answered: number)
          ON CONFLICT(question_id) DO UPDATE SET asked = asked + excluded.asked, answered = answered + excluded.answered`,
       )
       .run(questionId, asked, answered)
+    // this week's count: a row from an earlier week starts again from zero
+    handle()
+      .prepare(
+        `INSERT INTO question_week (question_id, week, asked, baseline) VALUES (?, ?, ?, 0)
+         ON CONFLICT(question_id) DO UPDATE SET
+           asked = CASE WHEN week = excluded.week THEN asked + excluded.asked ELSE excluded.asked END,
+           baseline = CASE WHEN week = excluded.week THEN baseline ELSE 0 END,
+           week = excluded.week`,
+      )
+      .run(questionId, weekOf(now), asked)
   })
+}
+
+/** The week a moment belongs to, named by its Sunday in Guatemala time (UTC-6 all year): weeks run from Sunday to Sunday. */
+export function weekOf(now: number): string {
+  const gt = new Date(now - 6 * 3_600_000)
+  const sunday = new Date(Date.UTC(gt.getUTCFullYear(), gt.getUTCMonth(), gt.getUTCDate() - gt.getUTCDay()))
+  return sunday.toISOString().slice(0, 10)
+}
+
+/**
+ * How often each question has come up THIS WEEK, for the selection of questions (selection.ts favours the ones behind).
+ * Every Sunday all questions start again from zero, so a question that had a bad run, or a new one, never has to "catch up"
+ * for more than a week. A question that shows up for the first time in the middle of the week (a new one, or one whose
+ * category was not being played) starts at the week's average instead of at zero, so it does not take over the games that
+ * are left until Sunday. The count of all time stays in question_stats, for the statistics.
+ */
+export function selectionCounts(ids: string[], now = Date.now()): Map<string, number> {
+  const db = handle()
+  const week = weekOf(now)
+  const rows = db.prepare('SELECT question_id, asked, baseline FROM question_week WHERE week = ?').all(week) as { question_id: string; asked: number; baseline: number }[]
+  const counts = new Map(rows.map((r) => [r.question_id, Number(r.asked) + Number(r.baseline)] as const))
+  const known = ids.filter((id) => counts.has(id)).map((id) => counts.get(id)!)
+  const mean = known.length ? Math.round(known.reduce((a, b) => a + b, 0) / known.length) : 0
+  const start = db.prepare(
+    `INSERT INTO question_week (question_id, week, asked, baseline) VALUES (?, ?, 0, ?)
+     ON CONFLICT(question_id) DO UPDATE SET week = excluded.week, asked = 0, baseline = excluded.baseline`,
+  )
+  for (const id of ids) {
+    if (counts.has(id)) continue
+    safe(() => void start.run(id, week, mean))
+    counts.set(id, mean)
+  }
+  return counts
 }
 
 /** Share of all valid answers -> the tier it suggests (same scale as the answer lists). */
@@ -250,8 +293,9 @@ export function resetStats(id?: string): void {
   if (id) {
     handle().prepare('DELETE FROM answer_log WHERE question_id = ?').run(id)
     handle().prepare('DELETE FROM question_stats WHERE question_id = ?').run(id)
+    handle().prepare('DELETE FROM question_week WHERE question_id = ?').run(id)
   } else {
-    handle().exec('DELETE FROM answer_log; DELETE FROM question_stats;')
+    handle().exec('DELETE FROM answer_log; DELETE FROM question_stats; DELETE FROM question_week;')
   }
 }
 
