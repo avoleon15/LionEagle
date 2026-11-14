@@ -1,5 +1,6 @@
 import { eagleSprite, lionSprite, rockSprite } from './mascots'
 import { Painter } from './paint'
+import { themeDir } from '../theme'
 
 // Backgrounds, drawn at a tiny logical resolution and scaled up with nearest-neighbour filtering.
 // Each one can be replaced by a picture made outside the code (see art/PROMPTS.md): drop it in
@@ -32,6 +33,8 @@ export interface GamePicture {
   wide: boolean // landscape pieces: they fill the whole width instead of a phone-width strip
   foot: number // where the feet stand on the bottom piece, as a share of that piece's height measured from its lower edge
   aspect: number // height / width of one piece (2:3 portrait pieces are 1.5, 3:2 landscape ones 0.667, 16:9 ones 0.5625)
+  pieces: number // how many equal pieces are stacked in the image
+  theme: string // the seasonal theme this picture belongs to ('' for the normal one)
 }
 
 /** Where the feet stand on the bottom piece of each extra map (share of the piece's height, from its lower edge). */
@@ -49,7 +52,17 @@ export async function loadGamePicture(preferWide: boolean, map = 'classic'): Pro
   const build = async (files: string[], wide: boolean, foot: number): Promise<GamePicture | null> => {
     const first = files.length > 0 ? await loadImage(files[0]) : null
     const image = first ? await stack(files) : null
-    return image && first ? { image, wide, foot, aspect: first.naturalHeight / first.naturalWidth } : null
+    return image && first ? { image, wide, foot, aspect: first.naturalHeight / first.naturalWidth, pieces: files.length, theme: '' } : null
+  }
+  // The seasonal theme (see theme.ts) replaces the classic map with its own pictures; if they are missing the normal ones are used.
+  const dir = themeDir()
+  if (dir && map === 'classic') {
+    if (preferWide) {
+      const picture = await build(await mapFiles(BG_FILES.mapWideIn(dir)), true, MAP_FOOT_WIDE)
+      if (picture) return { ...picture, theme: dir }
+    }
+    const picture = await build(await mapFiles(BG_FILES.mapIn(dir)), false, MAP_FOOT)
+    if (picture) return { ...picture, theme: dir }
   }
   // An extra map: its landscape pieces on wide screens, its portrait ones otherwise. If it is missing the classic map is used.
   if (map !== 'classic') {
@@ -73,7 +86,7 @@ export async function loadGamePicture(preferWide: boolean, map = 'classic'): Pro
     if (wide) return wide
   }
   const whole = await loadImage(BG_FILES.game)
-  if (whole) return { image: whole, wide: false, foot: 261 / 1536, aspect: 1.5 }
+  if (whole) return { image: whole, wide: false, foot: 261 / 1536, aspect: 1.5, pieces: 1, theme: '' }
   return build(BG_FILES.gameParts, false, 261 / 1536)
 }
 
@@ -81,12 +94,12 @@ async function stack(files: string[]): Promise<HTMLCanvasElement | null> {
   const parts = (await Promise.all(files.map(loadImage))).filter((x): x is HTMLImageElement => x !== null)
   if (parts.length === 0) return null
   const isWide = parts.length > 0 && parts[0].naturalWidth > parts[0].naturalHeight
-  const w = Math.min(isWide ? 768 : 320, ...parts.map((p) => p.naturalWidth))
+  const w = Math.min(isWide ? 768 : 512, ...parts.map((p) => p.naturalWidth)) // kept big: it is reduced to the scene's pixels by pixelResample, not by the browser
   const heights = parts.map((p) => Math.round((p.naturalHeight * w) / p.naturalWidth))
   const c = document.createElement('canvas')
   c.width = w
   c.height = heights.reduce((a, b) => a + b, 0)
-  const g = c.getContext('2d')!
+  const g = c.getContext('2d', { willReadFrequently: true })! // it is read back pixel by pixel by pixelResample
   g.imageSmoothingQuality = 'high'
   let y = c.height
   parts.forEach((p, i) => {
@@ -216,6 +229,12 @@ export interface World {
   footHigh: number
   /** true when the picture from bg/game.png is used */
   picture: boolean
+  /** The seasonal theme of the picture ('' for the normal one) and where its equal pieces are: used by the coded effects over it. */
+  theme: string
+  pieces: number
+  pieceH: number
+  stripX: number
+  stripW: number
 }
 
 /**
@@ -235,9 +254,7 @@ export function buildWorld(W: number, H: number, found: GamePicture | null): Wor
     const PW = found.wide || W <= H ? W : Math.min(W, PICTURE_W)
     const h = Math.max(H + 40, Math.round((ph * PW) / pw))
     const strip = new Painter(PW, h)
-    strip.g.imageSmoothingEnabled = true
-    strip.g.imageSmoothingQuality = 'high'
-    strip.g.drawImage(picture, 0, 0, PW, h)
+    pixelResample(picture, strip.g, PW, h)
     const p = new Painter(W, h)
     const x0 = Math.floor((W - PW) / 2)
     if (W > PW) {
@@ -259,7 +276,7 @@ export function buildWorld(W: number, H: number, found: GamePicture | null): Wor
     // The grass line of the bottom picture is 261 px (of 1536) above its lower edge; a piece is 2:3.
     // Portrait pieces are 2:3 with the grass line 261/1536 above the lower edge; landscape ones are 3:2 with it about 12.9% up (feet 11.5%).
     const footLow = h - Math.round(PW * found.aspect * found.foot)
-    return { canvas: p.canvas, footLow, footHigh: FOOT_HIGH, picture: true }
+    return { canvas: p.canvas, footLow, footHigh: FOOT_HIGH, picture: true, theme: found.theme, pieces: found.pieces, pieceH: h / found.pieces, stripX: x0, stripW: PW }
   }
   const h = Math.max(H * 3, 720)
   const p = new Painter(W, h)
@@ -281,7 +298,82 @@ export function buildWorld(W: number, H: number, found: GamePicture | null): Wor
   grass(p, W, groundTop, GROUND)
   mascots(p, W, groundTop)
   const footLow = groundTop + 10
-  return { canvas: p.canvas, footLow, footHigh: FOOT_HIGH, picture: false }
+  return { canvas: p.canvas, footLow, footHigh: FOOT_HIGH, picture: false, theme: '', pieces: 1, pieceH: h, stripX: 0, stripW: W }
+}
+
+/**
+ * Draws `src` into `g` at dw x dh pixels keeping it pixel art: every new pixel takes the colour that most of the source pixels under it
+ * have, instead of a blend of them. A blend (what the browser does when it shrinks a picture) makes the sharp little blocks of the art
+ * soft and uneven; this keeps them crisp. When the picture is not being reduced it is simply enlarged with hard edges.
+ */
+export function pixelResample(src: HTMLCanvasElement | HTMLImageElement, g: CanvasRenderingContext2D, dw: number, dh: number) {
+  const sw = src instanceof HTMLImageElement ? src.naturalWidth : src.width
+  const sh = src instanceof HTMLImageElement ? src.naturalHeight : src.height
+  if (sw <= dw * 1.2 || sh <= dh * 1.2) {
+    g.imageSmoothingEnabled = false
+    g.drawImage(src, 0, 0, dw, dh)
+    return
+  }
+  let from = src
+  if (src instanceof HTMLImageElement) {
+    const c = document.createElement('canvas')
+    c.width = sw
+    c.height = sh
+    c.getContext('2d')!.drawImage(src, 0, 0)
+    from = c
+  }
+  const fx = sw / dw
+  const fy = sh / dh
+  const out = g.createImageData(dw, dh)
+  const o = out.data
+  const BAND = 48 // target rows done at a time, so the whole big picture is never in memory as pixels
+  const keys = new Int32Array(64)
+  for (let y0 = 0; y0 < dh; y0 += BAND) {
+    const y1 = Math.min(dh, y0 + BAND)
+    const sy0 = Math.floor(y0 * fy)
+    const sy1 = Math.min(sh, Math.ceil(y1 * fy))
+    const d = (from as HTMLCanvasElement).getContext('2d')!.getImageData(0, sy0, sw, sy1 - sy0).data
+    for (let ty = y0; ty < y1; ty++) {
+      const ya = Math.floor(ty * fy) - sy0
+      const yb = Math.max(ya + 1, Math.floor((ty + 1) * fy) - sy0)
+      for (let tx = 0; tx < dw; tx++) {
+        const xa = Math.floor(tx * fx)
+        const xb = Math.max(xa + 1, Math.floor((tx + 1) * fx))
+        // four samples inside the footprint (a quarter and three quarters across and down): the new pixel is one of the picture's own
+        // colours, never a blend; the most common of the four, or the first when they all differ
+        const wx = xb - xa
+        const wy = yb - ya
+        const x1 = xa + (wx > 1 ? Math.floor(wx * 0.25) : 0)
+        const x2 = xa + (wx > 1 ? Math.floor(wx * 0.75) : 0)
+        const y1 = ya + (wy > 1 ? Math.floor(wy * 0.25) : 0)
+        const y2 = ya + (wy > 1 ? Math.floor(wy * 0.75) : 0)
+        let i = (y1 * sw + x1) * 4
+        keys[0] = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]
+        i = (y1 * sw + x2) * 4
+        keys[1] = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]
+        i = (y2 * sw + x1) * 4
+        keys[2] = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]
+        i = (y2 * sw + x2) * 4
+        keys[3] = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]
+        let best = keys[0]
+        let bestN = 1
+        for (let a = 0; a < 4; a++) {
+          let c = 0
+          for (let b = 0; b < 4; b++) if (keys[b] === keys[a]) c++
+          if (c > bestN) {
+            bestN = c
+            best = keys[a]
+          }
+        }
+        const j = (ty * dw + tx) * 4
+        o[j] = best >> 16
+        o[j + 1] = (best >> 8) & 255
+        o[j + 2] = best & 255
+        o[j + 3] = 255
+      }
+    }
+  }
+  g.putImageData(out, 0, 0)
 }
 
 /** Stars in the dark top part of the world, twinkling (drawn every frame). */
