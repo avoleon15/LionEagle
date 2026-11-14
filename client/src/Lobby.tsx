@@ -24,7 +24,7 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
   const link = `${window.location.origin}/${room.code}`
 
   // The text goes before the link so that it reads well in a chat; WhatsApp and others turn the link into a card with the image and title.
-  const invite = `¡Únete a mi lobby en Altus! 🦁🦅 Trivia donde gana quien responde lo que casi nadie diría. Entra a mi lobby (código ${room.code}):\n${link}`
+  const invite = `¡Únete a mi lobby en Altus! 🦁🦅 Gana quien responde lo que casi nadie diría. Código ${room.code}:\n${link}`
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(invite)
@@ -187,7 +187,7 @@ export function Lobby({ room, me, nick, onLeave }: Props) {
           </button>
         </div>
       </section>
-      <Chat players={room.players} me={me} />
+      <Chat players={room.players} me={me} code={room.code} />
       {suggesting && <SuggestBox nick={nick} categories={room.categories.map((c) => c.name)} onClose={() => setSuggesting(false)} />}
     </main>
   )

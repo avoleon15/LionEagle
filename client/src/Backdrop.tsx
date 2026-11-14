@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { BG_FILES, buildHome, cloudSprite, loadImage, rng } from './pixel/world'
+import { XmasHome } from './pixel/homeXmas'
+import { codedHome, themeDir } from './theme'
 
 // Full-screen background of the title screen and the lobby. Uses the picture in client/public/bg/ when it
 // exists (portrait on phones, landscape on wide screens); otherwise a drawn pixel-art landscape.
@@ -11,11 +13,20 @@ export function Backdrop() {
   const wrap = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
 
+  // ?fondo=codigo: the Christmas background drawn by code instead of the picture (a test; ?fondo=imagen goes back, see theme.ts)
+  const coded = codedHome()
+
   useEffect(() => {
+    if (coded) return
     let alive = true
     const wide = window.innerWidth > window.innerHeight
     const [first, second] = wide ? [BG_FILES.homeWide, BG_FILES.home] : [BG_FILES.home, BG_FILES.homeWide]
-    loadImage(first)
+    // the seasonal theme's pictures first (see theme.ts), then the normal ones
+    const dir = themeDir()
+    const themed = (f: string) => (dir ? f.replace('/bg/', `/bg/${dir}/`) : f)
+    loadImage(themed(first))
+      .then((img) => img ?? loadImage(themed(second)))
+      .then((img) => img ?? loadImage(first))
       .then((img) => img ?? loadImage(second))
       .then((img) => alive && img && setPicture(img.src))
     return () => {
@@ -23,8 +34,48 @@ export function Backdrop() {
     }
   }, [])
 
+  // the background drawn by code, with its own moving parts
   useEffect(() => {
-    if (picture) return
+    if (!coded) return
+    const el = wrap.current!
+    const cv = canvas.current!
+    let scene: XmasHome | null = null
+    let raf = 0
+    let last = performance.now()
+    const resize = () => {
+      const cw = el.clientWidth
+      const ch = el.clientHeight
+      if (!cw || !ch) return
+      const scale = Math.max(1, Math.floor(ch / H0))
+      const nw = Math.ceil(cw / scale)
+      const nh = Math.ceil(ch / scale)
+      if (scene && scene.W === nw && scene.H === nh) return
+      cv.width = nw
+      cv.height = nh
+      cv.style.width = `${nw * scale}px`
+      cv.style.height = `${nh * scale}px`
+      scene = new XmasHome(nw, nh)
+    }
+    resize()
+    const ro = new ResizeObserver(resize)
+    ro.observe(el)
+    const frame = () => {
+      const now = performance.now()
+      const dt = Math.min(0.05, (now - last) / 1000)
+      last = now
+      const g = cv.getContext('2d')
+      if (g && scene) scene.draw(g, now / 1000, dt)
+      raf = requestAnimationFrame(frame)
+    }
+    raf = requestAnimationFrame(frame)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
+  }, [coded])
+
+  useEffect(() => {
+    if (coded || picture) return
     const el = wrap.current!
     const cv = canvas.current!
     let W = 0
@@ -87,7 +138,7 @@ export function Backdrop() {
 
   return (
     <div className="backdrop" ref={wrap} aria-hidden>
-      {picture ? <div className="picture" style={{ backgroundImage: `url(${picture})` }} /> : <canvas ref={canvas} />}
+      {picture && !coded ? <div className="picture" style={{ backgroundImage: `url(${picture})` }} /> : <canvas ref={canvas} />}
     </div>
   )
 }

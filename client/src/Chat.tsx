@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { CHAT_GAP_MS, CHAT_MAX, type ChatMessage, type PlayerView } from '../../shared/protocol'
+import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent } from 'react'
+import { CHAT_GAP_MS, CHAT_MAX, type Avatar as AvatarLook, type ChatMessage, type PlayerView } from '../../shared/protocol'
 import { Avatar } from './Avatar'
 import { ChatIcon } from './PixelIcon'
 import { sfx } from './sound'
@@ -7,6 +7,23 @@ import { socket } from './socket'
 
 // Free chat: a button opens a small panel with a text field; what you send shows up as a bubble (avatar and text, no name) for everybody.
 // It works in the waiting room, during the questions and at the end. The field only has focus when the player opens it.
+// Opening the panel also shows the messages of this room (scroll up for the older ones). They are only kept in this browser, in memory,
+// while the player is in the room: nothing is stored on the server, and a message sent before you joined cannot be seen.
+
+const MAX_HISTORY = 100
+let historyCode = ''
+let history: ChatMessage[] = []
+const known = new Map<string, { nick: string; avatar: AvatarLook }>() // who said it, also for players who have left since
+const listeners = new Set<() => void>()
+socket.on('chat:msg', (msg) => {
+  history = [...history, msg].slice(-MAX_HISTORY)
+  listeners.forEach((f) => f())
+})
+const subscribe = (f: () => void) => {
+  listeners.add(f)
+  return () => void listeners.delete(f)
+}
+const getHistory = () => history
 
 export const SHOW_MS = 4500
 const MAX_BUBBLES = 3
@@ -19,11 +36,13 @@ interface Bubble {
 interface Props {
   players: PlayerView[]
   me: string
+  /** The room: when it changes the history starts over. */
+  code: string
   /** Players standing on the podium: once the game is over their messages appear over their heads (see Podium), not here. */
   podium?: string[]
 }
 
-export function Chat({ players, me, podium = [] }: Props) {
+export function Chat({ players, me, code, podium = [] }: Props) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [bubbles, setBubbles] = useState<Bubble[]>([])
@@ -34,6 +53,15 @@ export function Chat({ players, me, podium = [] }: Props) {
   const before = useRef<Element | null>(null)
   const podiumRef = useRef(podium)
   podiumRef.current = podium
+  const log = useRef<HTMLUListElement>(null)
+  const stuck = useRef(true) // the list follows the newest message unless the player scrolled up
+  if (code !== historyCode) {
+    historyCode = code
+    history = []
+    known.clear()
+  }
+  players.forEach((p) => known.set(p.id, { nick: p.nick, avatar: p.avatar }))
+  const messages = useSyncExternalStore(subscribe, getHistory)
 
   useEffect(() => {
     const onMsg = (msg: ChatMessage) => {
@@ -49,6 +77,11 @@ export function Chat({ players, me, podium = [] }: Props) {
     const id = setTimeout(() => setBubbles((b) => b.filter((x) => Date.now() - x.at < SHOW_MS)), SHOW_MS)
     return () => clearTimeout(id)
   }, [bubbles])
+
+  useEffect(() => {
+    const el = log.current
+    if (open && el && stuck.current) el.scrollTop = el.scrollHeight
+  }, [open, messages])
 
   // The on-screen keyboard covers the bottom of the page on phones: lift the panel above it while it is open.
   useEffect(() => {
@@ -67,6 +100,7 @@ export function Chat({ players, me, podium = [] }: Props) {
 
   const openPanel = () => {
     before.current = document.activeElement
+    stuck.current = true
     setOpen(true)
     setError('')
     setTimeout(() => inputRef.current?.focus(), 0)
@@ -105,7 +139,7 @@ export function Chat({ players, me, podium = [] }: Props) {
   return (
     <div className="chat" style={lift ? { bottom: `calc(${lift}px + 10px)` } : undefined}>
       <ul className="bubbles" aria-live="polite">
-        {bubbles.map(({ msg }) => {
+        {!open && bubbles.map(({ msg }) => {
           const from = byId(msg.from)
           if (!from) return null
           return (
@@ -117,22 +151,47 @@ export function Chat({ players, me, podium = [] }: Props) {
         })}
       </ul>
       {open && (
-        <form className="chatmenu" onSubmit={send}>
-          <input
-            ref={inputRef}
-            value={text}
-            maxLength={CHAT_MAX}
-            placeholder="Escribe un mensaje"
-            aria-label="Mensaje para la sala"
-            autoComplete="off"
-            enterKeyHint="send"
-            onKeyDown={onKeyDown}
-            onChange={(e) => setText(e.target.value)}
-          />
-          <button className="primary" disabled={!text.trim() || wait}>
-            Enviar
-          </button>
-        </form>
+        <div className="chatpanel">
+          <ul
+            className="chatlog"
+            ref={log}
+            aria-label="Mensajes de la sala"
+            onScroll={(e) => {
+              const el = e.currentTarget
+              stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+            }}
+          >
+            {messages.length === 0 && <li className="empty">Todavía no hay mensajes.</li>}
+            {messages.map((msg) => {
+              const who = known.get(msg.from)
+              return (
+                <li key={msg.id} className={msg.from === me ? 'own' : ''}>
+                  {who && <Avatar a={who.avatar} size={20} />}
+                  <span className="said">
+                    <b>{msg.from === me ? 'Tú' : who?.nick ?? 'Alguien'}</b>
+                    <span>{msg.text}</span>
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
+          <form className="chatmenu" onSubmit={send}>
+            <input
+              ref={inputRef}
+              value={text}
+              maxLength={CHAT_MAX}
+              placeholder="Escribe un mensaje"
+              aria-label="Mensaje para la sala"
+              autoComplete="off"
+              enterKeyHint="send"
+              onKeyDown={onKeyDown}
+              onChange={(e) => setText(e.target.value)}
+            />
+            <button className="primary" disabled={!text.trim() || wait}>
+              Enviar
+            </button>
+          </form>
+        </div>
       )}
       {error && <p className="chaterror">{error}</p>}
       <button type="button" className="chatbtn" aria-label="Mensajes" aria-expanded={open} onClick={() => (open ? closePanel() : openPanel())}>

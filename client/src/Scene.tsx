@@ -3,6 +3,7 @@ import type { Avatar, MapId } from '../../shared/protocol'
 import { climbValue, durationFor, type Climb } from './climb'
 import { AVATAR_H, AVATAR_W, avatarSprite } from './pixel/avatar'
 import { drawText, textWidth } from './pixel/font'
+import { ChristmasLayer, type Actor } from './pixel/snow'
 import { MAX_SCORE, buildWorld, cloudSprite, drawStars, loadGamePicture, rng, type GamePicture, type World } from './pixel/world'
 
 // The game backdrop: one tall pixel-art column (ground, sky, space) that fills the whole screen. Only the
@@ -11,7 +12,10 @@ import { MAX_SCORE, buildWorld, cloudSprite, drawStars, loadGamePicture, rng, ty
 
 const H0 = 240
 
-/** On a phone the characters are drawn at 75% so a full room does not crowd the screen. */
+/**
+ * On a phone the characters are drawn at about 75% so a full room does not crowd the screen. They are drawn on the screen-resolution
+ * layer (not in the scene's coarse pixel grid) with every sprite pixel a whole number of device pixels, so they stay crisp.
+ */
 const PHONE_MAX_WIDTH = 600
 const PHONE_BEAN = 0.75
 const tinted = new WeakMap<HTMLCanvasElement, Map<string, HTMLCanvasElement>>()
@@ -34,28 +38,6 @@ function silhouette(src: HTMLCanvasElement, color: string): HTMLCanvasElement {
 }
 const GOLD_CONFETTI = ['#ffd23f', '#fff6c2', '#ffffff', '#ff9f1c', '#f4b942']
 interface Confetti { x: number; y: number; vx: number; vy: number; g: number; delay: number; t: number; color: string; sway: number; freq: number; phase: number }
-const smallSprites = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>()
-/** The sprite shrunk to `k` of its size: enlarged 4x without smoothing first, so the pixels stay clean when reduced. */
-function shrunk(src: HTMLCanvasElement, k: number): HTMLCanvasElement {
-  if (k === 1) return src
-  const hit = smallSprites.get(src)
-  if (hit) return hit
-  const big = document.createElement('canvas')
-  big.width = src.width * 4
-  big.height = src.height * 4
-  const bg = big.getContext('2d')!
-  bg.imageSmoothingEnabled = false
-  bg.drawImage(src, 0, 0, big.width, big.height)
-  const out = document.createElement('canvas')
-  out.width = Math.round(src.width * k)
-  out.height = Math.round(src.height * k)
-  const og = out.getContext('2d')!
-  og.imageSmoothingEnabled = true
-  og.imageSmoothingQuality = 'high'
-  og.drawImage(big, 0, 0, out.width, out.height)
-  smallSprites.set(src, out)
-  return out
-}
 // The colour of each score, the same as in the ranking table (--t10 ... --t100 in styles.css), and a lighter tone of it for the sparks.
 const TIER_COLOR: Record<number, string> = { 10: '#7fe0ff', 30: '#5b8cff', 60: '#7be35a', 80: '#c77dff', 100: '#ffd23f' }
 const TIER_LIGHT: Record<number, string> = { 10: '#d6f6ff', 30: '#b9ccff', 60: '#d2f7c4', 80: '#e8ccff', 100: '#fff6c2' }
@@ -102,16 +84,22 @@ export function Scene(props: Props) {
     let clouds: Cloud[] = []
     let particles: Particle[] = []
     let cam = -1
-    let beanK = 1 // size of the characters: 1, or 0.75 on a phone
-    let AW: number = AVATAR_W
+    let beanPx = 0 // device pixels per sprite pixel on a phone (0 = drawn in the scene like on a computer)
+    let beanDpr = 1
+    let AW: number = AVATAR_W // size of the characters in scene pixels
     let AH: number = AVATAR_H
+    const xmas = new ChristmasLayer() // coded effects over the Christmas pictures (see pixel/snow.ts)
+    let actors: Actor[] = [] // the characters of this frame, for the effects of the next one
+    let crowdRow = 0 // with many players the characters stand in staggered rows: which row yours is in, and how much each row stands higher
+    let rowGap = 0
+    let sprites: { img: HTMLCanvasElement; cx: number; top: number }[] = [] // phone: characters to draw on the screen layer
     let seenClimb: Climb | null = null
     let popup: { text: string; color: string; at: number } | null = null
     let burstAt = 0
     let burstTier = 0
     let trail = ['#ffffff'] // colours of the sparks that come off the rocket while the character climbs
     let confetti: Confetti[] = [] // the golden confetti of a Rey León
-    const goldAt = new Map<string, number>() // when each character got its Rey León: it flashes in gold for a moment
+    let goldMine = { from: 0, to: 0 } // while your character blinks gold: from the moment you get a Rey León until a moment after its confetti
     const burstedFor = new Map<string, number>() // for each other player, the climb whose end already had its burst
     let launchAt = 0
     // Each other player rises on their own, as soon as their score goes up (nobody waits for a result card but you).
@@ -135,7 +123,10 @@ export function Scene(props: Props) {
       const cw = el.clientWidth
       const ch = el.clientHeight
       if (!cw || !ch) return
-      const scale = Math.max(1, Math.floor(ch / H0))
+      // One scene pixel is a whole number of DEVICE pixels (on a phone with a screen ratio such as 2.625 a whole number of css pixels
+      // would be uneven blocks of device pixels, and the pixel art looks ragged); with whole ratios (1, 2, 3) nothing changes.
+      const ratio = window.devicePixelRatio || 1
+      const scale = Math.max(1, Math.round(Math.max(1, Math.floor(ch / H0)) * ratio)) / ratio
       const nw = Math.ceil(cw / scale)
       const nh = Math.ceil(ch / scale)
       cv.width = nw
@@ -143,9 +134,10 @@ export function Scene(props: Props) {
       cv.style.width = `${nw * scale}px`
       cv.style.height = `${nh * scale}px`
       sc = scale
-      beanK = cw < PHONE_MAX_WIDTH ? PHONE_BEAN : 1
-      AW = Math.round(AVATAR_W * beanK)
-      AH = Math.round(AVATAR_H * beanK)
+      beanDpr = window.devicePixelRatio || 1
+      beanPx = cw < PHONE_MAX_WIDTH ? Math.max(1, Math.round(scale * PHONE_BEAN * beanDpr)) : 0
+      AW = beanPx ? (AVATAR_W * beanPx) / beanDpr / scale : AVATAR_W
+      AH = beanPx ? (AVATAR_H * beanPx) / beanDpr / scale : AVATAR_H
       const dpr = window.devicePixelRatio || 1
       tv.width = Math.round(cw * dpr)
       tv.height = Math.round(ch * dpr)
@@ -180,26 +172,30 @@ export function Scene(props: Props) {
       last = nowMs
       const g = cv.getContext('2d')
       tags = []
+      sprites = []
       if (g && world) draw(g, nowMs, now, dt)
       drawTags()
       raf = requestAnimationFrame(frame)
     }
 
-    /** The sprite, or its gold silhouette (blinking light and dark gold) for 0.8 s after a Rey León. */
-    const goldFlash = (sprite: HTMLCanvasElement, key: string, nowMs: number) => {
-      const at = goldAt.get(key)
-      if (at === undefined) return sprite
-      const u = (nowMs - at) / 1000
-      if (u < 0 || u > 0.8) return sprite
-      return silhouette(sprite, Math.floor(u * 14) % 2 ? '#fff6c2' : '#ffd23f')
+    /** Draws a character with its feet at `top + AH`: in the scene, or (phone) queued for the sharp screen layer. */
+    const putBean = (g: CanvasRenderingContext2D, img: HTMLCanvasElement, cx: number, top: number) => {
+      if (beanPx) sprites.push({ img, cx, top })
+      else g.drawImage(img, cx - Math.floor(AW / 2), top)
     }
 
-    /** The sparks at the end of a climb, in the colour of the score; a "Rey León" (100) is golden confetti and a gold flash of the character. */
-    const burst = (x: number, y: number, tier: number, nowMs: number, key: string) => {
+    /** The sprite, or its gold silhouette (blinking light and dark gold) for 0.8 s after a Rey León. */
+    const GOLD_AFTER_MS = 800
+    const goldFlash = (sprite: HTMLCanvasElement, from: number, to: number, nowMs: number) => {
+      if (nowMs < from || nowMs > to) return sprite
+      return silhouette(sprite, Math.floor(((nowMs - from) / 1000) * 14) % 2 ? '#fff6c2' : '#ffd23f')
+    }
+
+    /** The sparks at the end of a climb, in the colour of the score; a "Rey León" (100) is golden confetti and the character blinks gold from the moment it is earned. */
+    const burst = (x: number, y: number, tier: number, nowMs: number) => {
       const color = TIER_COLOR[tier] ?? '#ffffff'
       const light = TIER_LIGHT[tier] ?? '#ffffff'
       if (tier >= 100) {
-        goldAt.set(key, nowMs)
         // golden confetti falls over the whole screen, and some more jumps out of the character
         const fall = Math.round(W * 0.5)
         for (let i = 0; i < fall; i++) {
@@ -232,6 +228,7 @@ export function Scene(props: Props) {
           popup = { text: `+${pts}`, color: TIER_COLOR[tier] ?? '#ffffff', at: climb.start }
           burstAt = climb.start + climb.dur
           burstTier = tier
+          if (tier >= 100) goldMine = { from: climb.start, to: climb.start + climb.dur + GOLD_AFTER_MS }
           trail = [TIER_COLOR[tier] ?? '#ffffff', TIER_LIGHT[tier] ?? '#ffffff']
         }
         seenClimb = climb
@@ -264,16 +261,19 @@ export function Scene(props: Props) {
         if (sy > -20 && sy < H + 4) g.drawImage(c.sprite, Math.round(c.x), sy)
       }
 
+      xmas.setActors(actors)
+      actors = []
+      xmas.draw(g, w, picture?.wide ?? false, W, H, camY, dt, now)
       drawOthers(g, others, nowMs, now, camY)
 
       const x = Math.round(W / 2)
-      const top = Math.round(footY - AH - camY)
+      const top = Math.round(footY - AH - camY - crowdRow * rowGap)
       // shadow on the grass while close to the ground
       const height = w.footLow - footY
       if (height < 40) {
         const sw = Math.max(4, Math.round(12 - height / 5))
         g.fillStyle = 'rgba(0,0,0,0.28)'
-        const sy = Math.round(w.footLow - camY)
+        const sy = Math.round(w.footLow - camY - crowdRow * rowGap)
         g.fillRect(x - Math.floor((sw - 4) / 2), sy - 1, sw - 4, 1)
         g.fillRect(x - Math.floor(sw / 2), sy, sw, 1)
         g.fillRect(x - Math.floor((sw - 4) / 2), sy + 1, sw - 4, 1)
@@ -287,14 +287,15 @@ export function Scene(props: Props) {
         g.fillStyle = '#ff7a1a'; g.fillRect(x - 1, top + AH + 3 + f, 2, 3)
         if (Math.floor(now * 30) % 2 === 0) particles.push({ x, y: top + AH + 3, vx: (Math.random() - 0.5) * 14, vy: 20, life: 0, max: 0.45, color: '#ffe9a8', size: 1 })
       }
+      actors.push({ key: 'me', x, foot: footY - crowdRow * rowGap, height: AH, rising })
       if (top > -AH) {
-        g.drawImage(goldFlash(shrunk(avatarSprite(avatar), beanK), 'me', nowMs), x - Math.floor(AW / 2), top)
+        putBean(g, goldFlash(avatarSprite(avatar), goldMine.from, goldMine.to, nowMs), x, top)
         tags.push({ name: nick.length > 14 ? nick.slice(0, 14) : nick, cx: x, top, mine: true })
       }
 
       if (burstAt && nowMs >= burstAt) {
         burstAt = 0
-        burst(x, top + AH / 2, burstTier, nowMs, 'me')
+        burst(x, top + AH / 2, burstTier, nowMs)
       }
       if (popup) {
         const u = (nowMs - popup.at) / 1000
@@ -337,6 +338,13 @@ export function Scene(props: Props) {
       const dpr = tv.width / (tv.clientWidth || 1)
       g.setTransform(dpr, 0, 0, dpr, 0, 0)
       g.clearRect(0, 0, tv.clientWidth, tv.clientHeight)
+      if (sprites.length) {
+        g.imageSmoothingEnabled = false
+        const px = beanPx / dpr // css pixels per sprite pixel
+        const snap = (v: number) => Math.round(v * dpr) / dpr
+        for (const b of sprites) g.drawImage(b.img, snap(b.cx * sc - (AVATAR_W * px) / 2), snap(b.top * sc), AVATAR_W * px, AVATAR_H * px)
+        g.imageSmoothingEnabled = true
+      }
       const fs = Math.max(8, Math.round(sc * 2.2))
       g.font = `600 ${fs}px "Pixelify Sans", monospace`
       g.textBaseline = 'alphabetic'
@@ -374,7 +382,16 @@ export function Scene(props: Props) {
       let mid = 0
       places.forEach((v, j) => { if (Math.abs(v - 0.5) < Math.abs(places[mid] - 0.5)) mid = j })
       const slots = places.filter((_, j) => j !== mid)
-      others.forEach((o, i) => {
+      // When the characters would stand on top of each other (many players on a narrow screen) they go in 2 or 3 staggered rows:
+      // the back rows stand a little higher and are drawn first, so everybody stays visible.
+      const spacing = total > 1 ? (W * 0.84) / (total - 1) : W
+      const rows = Math.min(3, Math.max(1, Math.ceil((AW + 1) / spacing)))
+      rowGap = rows > 1 ? Math.round(AH * 0.3) : 0
+      crowdRow = mid % rows
+      const rowOf = (i: number) => (i < mid ? i : i + 1) % rows
+      const order = others.map((_, i) => i).sort((a, b) => rowOf(b) - rowOf(a))
+      order.forEach((i) => {
+        const o = others[i]
         let f = flights.get(o.id)
         if (!f) flights.set(o.id, (f = { from: o.score, to: o.score, start: 0, dur: 0 }))
         if (o.score !== f.to) {
@@ -383,7 +400,7 @@ export function Scene(props: Props) {
           flights.set(o.id, f)
         }
         const score = climbValue(f, nowMs)
-        const foot = w.footLow - (Math.min(MAX_SCORE, Math.max(0, score)) / MAX_SCORE) * (w.footLow - w.footHigh)
+        const foot = w.footLow - (Math.min(MAX_SCORE, Math.max(0, score)) / MAX_SCORE) * (w.footLow - w.footHigh) - rowOf(i) * rowGap
         const rising = nowMs > f.start && nowMs < f.start + f.dur
         const gain = f.to - f.from
         const tier = tierOf(gain)
@@ -391,13 +408,14 @@ export function Scene(props: Props) {
         const cx = Math.round(W * slots[i])
         const top = Math.round(foot - AH - camY + bob)
         if (top > H || top < -AH) return
-        g.drawImage(goldFlash(shrunk(avatarSprite(o.avatar), beanK), o.id, nowMs), cx - Math.floor(AW / 2), top)
+        actors.push({ key: o.id, x: cx, foot, height: AH, rising })
+        putBean(g, goldFlash(avatarSprite(o.avatar), tier >= 100 ? f.start : 0, tier >= 100 ? f.start + f.dur + GOLD_AFTER_MS : 0, nowMs), cx, top)
         tags.push({ name: o.nick.length > 8 ? o.nick.slice(0, 8) : o.nick, cx, top })
         if (rising && Math.floor(now * 24 + i) % 3 === 0) particles.push({ x: cx + (Math.random() - 0.5) * 8, y: top + AH, vx: (Math.random() - 0.5) * 6, vy: 16, life: 0, max: 0.5, color: Math.random() < 0.5 ? TIER_COLOR[tier] : TIER_LIGHT[tier], size: tier >= 100 ? 2 : 1 })
         // when their climb ends on screen: the sparks of their score (an explosion for a Rey León)
         if (gain > 0 && f.dur > 0 && nowMs >= f.start + f.dur && nowMs - (f.start + f.dur) < 1500 && burstedFor.get(o.id) !== f.start) {
           burstedFor.set(o.id, f.start)
-          burst(cx, top + AH / 2, tier, nowMs, o.id)
+          burst(cx, top + AH / 2, tier, nowMs)
         }
       })
       for (const id of flights.keys()) if (!others.some((o) => o.id === id)) flights.delete(id)
