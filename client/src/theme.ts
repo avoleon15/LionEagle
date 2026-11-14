@@ -30,17 +30,17 @@ export function activeTheme(): Theme {
 }
 
 /**
- * A test: the title screen's background drawn by code (pixel/homeXmas.ts) instead of the picture. Open the game with ?fondo=codigo to see it
- * and ?fondo=imagen to go back (remembered in that browser). It only exists for the Christmas theme.
+ * The title screen and the waiting room show the Christmas background drawn by code (pixel/homeXmas.ts) instead of the picture.
+ * ?fondo=imagen shows the picture instead (and ?fondo=codigo goes back); the choice is remembered in that browser.
  */
 export function codedHome(): boolean {
   if (activeTheme() !== 'navidad') return false
   try {
     const asked = new URLSearchParams(window.location.search).get('fondo')
     if (asked === 'codigo' || asked === 'imagen') window.localStorage.setItem('altus-fondo', asked)
-    return window.localStorage.getItem('altus-fondo') === 'codigo'
+    return window.localStorage.getItem('altus-fondo') !== 'imagen'
   } catch {
-    return false
+    return true
   }
 }
 
