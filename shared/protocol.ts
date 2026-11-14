@@ -81,6 +81,7 @@ export interface RoundRecord {
 export interface CategoryInfo {
   name: string
   count: number // published questions in this category
+  seasonal?: boolean // a seasonal pack the owner has turned on (shown apart in the lobby)
 }
 
 export interface RoomState {
@@ -147,6 +148,7 @@ export interface ClientToServer {
   'room:categories': (names: string[], ack: (r: Ack<null>) => void) => void
   'game:answer': (text: string, ack: (r: Ack<AnswerResult>) => void) => void
   'game:reset': (ack: (r: Ack<null>) => void) => void
+  'game:rematch': (ack: (r: Ack<null>) => void) => void
   'chat:send': (p: ChatSend, ack: (r: Ack<null>) => void) => void
 }
 

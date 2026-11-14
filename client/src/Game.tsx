@@ -426,9 +426,12 @@ function Final({ room, game, me, onLeave }: Props) {
         {error && <p className="error">{error}</p>}
         <button onClick={() => setDetails((d) => !d)}>{details ? 'Ocultar mis resultados' : 'Ver mis resultados'}</button>
         {isHost ? (
-          <button className="primary" onClick={() => socket.emit('game:reset', (res) => !res.ok && setError(res.error))}>
-            Volver a la sala
-          </button>
+          <>
+            <button className="primary" onClick={() => socket.emit('game:rematch', (res) => !res.ok && setError(res.error))}>
+              ¡Revancha!
+            </button>
+            <button onClick={() => socket.emit('game:reset', (res) => !res.ok && setError(res.error))}>Volver a la sala</button>
+          </>
         ) : (
           <p className="hint">Esperando al host…</p>
         )}

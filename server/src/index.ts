@@ -204,6 +204,20 @@ io.on('connection', (socket) => {
   })
 
 
+  socket.on('game:rematch', (ack) => {
+    const reply = replier<null>(ack)
+    try {
+      const room = rooms.rematch(socket.id)
+      reply({ ok: true, data: null })
+      broadcast(room)
+    } catch (e) {
+      reply({ ok: false, error: errorText(e) })
+      // a rematch that could not start leaves the room in the waiting room: show it to everybody
+      const found = rooms.findBySocket(socket.id)
+      if (found && found.room.phase === 'lobby') broadcast(found.room)
+    }
+  })
+
   socket.on('game:reset', (ack) => {
     const reply = replier<null>(ack)
     try {

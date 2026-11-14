@@ -353,6 +353,24 @@ export function answer(socketId: string, text: string) {
   return found.room.game.submit(found.player.id, text)
 }
 
+/**
+ * Rematch: once the game is over the host starts a new one at once, with the same players (whoever is still in the room) and the
+ * same categories, without going back through the waiting room.
+ */
+export function rematch(socketId: string): Room {
+  const found = findBySocket(socketId)
+  if (!found) throw new RoomError('No estás en una sala.')
+  const { room, player } = found
+  if (room.hostId !== player.id) throw new RoomError('Solo el host puede pedir la revancha.')
+  if (!room.game?.isFinished()) throw new RoomError('La partida no ha terminado.')
+  if (room.players.size < 2) throw new RoomError('Se necesitan al menos 2 jugadores.')
+  room.game.dispose()
+  room.game = null
+  room.phase = 'lobby'
+  // if the new game cannot start (say the chosen categories ran out of questions) everybody stays in the waiting room
+  return start(socketId)
+}
+
 /** Host sends everyone back to the lobby once the game is over. */
 export function reset(socketId: string): Room {
   const found = findBySocket(socketId)
