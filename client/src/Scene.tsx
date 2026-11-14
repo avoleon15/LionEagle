@@ -3,6 +3,7 @@ import type { Avatar, MapId } from '../../shared/protocol'
 import { climbValue, durationFor, type Climb } from './climb'
 import { AVATAR_H, AVATAR_W, avatarSprite } from './pixel/avatar'
 import { drawText, textWidth } from './pixel/font'
+import { ChristmasLayer, type Actor } from './pixel/snow'
 import { MAX_SCORE, buildWorld, cloudSprite, drawStars, loadGamePicture, rng, type GamePicture, type World } from './pixel/world'
 
 // The game backdrop: one tall pixel-art column (ground, sky, space) that fills the whole screen. Only the
@@ -87,6 +88,8 @@ export function Scene(props: Props) {
     let beanDpr = 1
     let AW: number = AVATAR_W // size of the characters in scene pixels
     let AH: number = AVATAR_H
+    const xmas = new ChristmasLayer() // coded effects over the Christmas pictures (see pixel/snow.ts)
+    let actors: Actor[] = [] // the characters of this frame, for the effects of the next one
     let crowdRow = 0 // with many players the characters stand in staggered rows: which row yours is in, and how much each row stands higher
     let rowGap = 0
     let sprites: { img: HTMLCanvasElement; cx: number; top: number }[] = [] // phone: characters to draw on the screen layer
@@ -258,6 +261,9 @@ export function Scene(props: Props) {
         if (sy > -20 && sy < H + 4) g.drawImage(c.sprite, Math.round(c.x), sy)
       }
 
+      xmas.setActors(actors)
+      actors = []
+      xmas.draw(g, w, picture?.wide ?? false, W, H, camY, dt, now)
       drawOthers(g, others, nowMs, now, camY)
 
       const x = Math.round(W / 2)
@@ -281,6 +287,7 @@ export function Scene(props: Props) {
         g.fillStyle = '#ff7a1a'; g.fillRect(x - 1, top + AH + 3 + f, 2, 3)
         if (Math.floor(now * 30) % 2 === 0) particles.push({ x, y: top + AH + 3, vx: (Math.random() - 0.5) * 14, vy: 20, life: 0, max: 0.45, color: '#ffe9a8', size: 1 })
       }
+      actors.push({ key: 'me', x, foot: footY - crowdRow * rowGap, height: AH, rising })
       if (top > -AH) {
         putBean(g, goldFlash(avatarSprite(avatar), goldMine.from, goldMine.to, nowMs), x, top)
         tags.push({ name: nick.length > 14 ? nick.slice(0, 14) : nick, cx: x, top, mine: true })
@@ -401,6 +408,7 @@ export function Scene(props: Props) {
         const cx = Math.round(W * slots[i])
         const top = Math.round(foot - AH - camY + bob)
         if (top > H || top < -AH) return
+        actors.push({ key: o.id, x: cx, foot, height: AH, rising })
         putBean(g, goldFlash(avatarSprite(o.avatar), tier >= 100 ? f.start : 0, tier >= 100 ? f.start + f.dur + GOLD_AFTER_MS : 0, nowMs), cx, top)
         tags.push({ name: o.nick.length > 8 ? o.nick.slice(0, 8) : o.nick, cx, top })
         if (rising && Math.floor(now * 24 + i) % 3 === 0) particles.push({ x: cx + (Math.random() - 0.5) * 8, y: top + AH, vx: (Math.random() - 0.5) * 6, vy: 16, life: 0, max: 0.5, color: Math.random() < 0.5 ? TIER_COLOR[tier] : TIER_LIGHT[tier], size: tier >= 100 ? 2 : 1 })

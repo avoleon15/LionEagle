@@ -3,3 +3,9 @@ Fondos hechos en ChatGPT: home.png, home-wide.png, game-1.png (suelo), game-2.pn
 Mapas: el juego elige uno al azar al empezar cada partida (lista MAPS en shared/protocol.ts).
 - classic: map-01..14.png y map-wide-01..14.png aqui mismo.
 Para agregar otro mapa: carpeta nueva con el mismo formato, su nombre en MAPS y su altura de pies en MAP_FEET (client/src/pixel/world.ts).
+
+Temas de temporada: cada tema tiene su carpeta aqui (navidad/ con home.png, home-wide.png, map-01..14.png y map-wide-01..14.png).
+Los fondos normales (los de esta carpeta) NO se borran. Cual se usa se decide en client/src/theme.ts (DEFAULT_THEME = 'navidad' o 'clasico').
+Para verlos sin cambiar nada: abrir el juego con ?tema=clasico o ?tema=navidad (se recuerda en ese navegador).
+Sobre las imagenes de navidad se dibujan efectos con codigo (nieve que cae, nieve que se levanta del suelo, luces que parpadean, nubes de nieve): client/src/pixel/snow.ts. Por ahora solo en las primeras 3 piezas.
+Imagen para compartir el enlace (client/public/share.png): ahora es la navidena. La normal quedo guardada como client/public/share-clasico.png; para volver, copiarla encima de share.png.

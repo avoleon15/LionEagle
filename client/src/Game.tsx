@@ -313,7 +313,9 @@ function Podium({ players, scores, me }: { players: PlayerView[]; scores: Record
                   {msg.text}
                 </span>
               )}
-              <Avatar a={r.p.avatar} size={r.place === 1 ? 56 : 44} />
+              <span className="face">
+                <Avatar a={r.p.avatar} size={r.place === 1 ? 56 : 44} />
+              </span>
               <span className={`block place p${r.place}`}>{r.place}</span>
             </div>
           </div>
